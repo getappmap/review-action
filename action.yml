@@ -1,0 +1,157 @@
+name: AppMap Behavioral Review
+description: |
+  Maintain a project's AppMap gold-trace baseline and review the runtime-behavior
+  change between two revisions. The work is performed by an AI coding agent
+  (Claude Code, headless) running the getappmap/skills `appmap-gold-traces` and
+  `appmap-review` skills. Updated gold traces (and any labels/tests the agent adds)
+  are committed and pushed to the PR branch; the review is posted as a PR comment
+  and job summary.
+branding:
+  icon: eye
+  color: purple
+
+inputs:
+  anthropic-api-key:
+    description: API key used to authenticate the Claude Code agent that runs the skills.
+    required: true
+  github-token:
+    description: |
+      Token used to push gold-trace updates to the PR branch and to post the review
+      comment. Needs `contents: write` and `pull-requests: write`. Defaults to the
+      workflow token.
+    default: ${{ github.token }}
+  base-revision:
+    description: |
+      The baseline revision the review compares against. Defaults to the PR base ref
+      (`GITHUB_BASE_REF`). A revision is any git ref (SHA, branch, tag).
+    default: ${{ github.base_ref }}
+  head-revision:
+    description: |
+      The head revision to review. Defaults to the commit that triggered the run
+      (`GITHUB_SHA`). Note: the action first records + commits gold-trace updates on
+      the head branch, so the review reads the freshly-blessed head traces.
+    default: ${{ github.sha }}
+  gold-traces-dir:
+    description: Managed gold-traces directory, relative to `working-directory` (the engine's `--dir`).
+    default: gold_traces
+  working-directory:
+    description: |
+      Directory the agent and gold-traces engine run from. Set to a package root in a
+      monorepo. Defaults to the repository root.
+    default: '.'
+  skills-repo:
+    description: Git URL of the skills repository to install.
+    default: https://github.com/getappmap/skills.git
+  skills-ref:
+    description: Branch, tag, or SHA of the skills repository to pin.
+    default: main
+  claude-model:
+    description: Model override passed to Claude Code (`--model`). Empty uses the Claude Code default.
+    default: ''
+  appmap-cli-version:
+    description: Version of `@appland/appmap` to install (npm dist-tag or version). Empty installs latest.
+    default: ''
+  commit-message:
+    description: Commit subject used when pushing gold-trace (and related) updates. `[skip ci]` is appended automatically.
+    default: 'chore(gold-traces): update behavioral baseline'
+
+outputs:
+  report-file:
+    description: Path to the generated Markdown review report.
+    value: ${{ steps.review.outputs.report-file }}
+  gold-traces-updated:
+    description: 'true if the agent produced committable changes that were pushed.'
+    value: ${{ steps.commit.outputs.updated }}
+
+runs:
+  using: composite
+  steps:
+    # ----------------------------------------------------------------------------
+    # Loop guard: pushing to the PR branch re-triggers the workflow. Bail if HEAD
+    # is already one of our own gold-trace commits. Belt-and-suspenders with the
+    # `[skip ci]` marker appended to the commit subject.
+    # ----------------------------------------------------------------------------
+    - id: guard
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        subject="$(git log -1 --pretty=%s || true)"
+        author="$(git log -1 --pretty=%an || true)"
+        if [[ "$author" == "github-actions[bot]" && "$subject" == chore\(gold-traces\):* ]]; then
+          echo "HEAD is an action-authored gold-traces commit; skipping to avoid a re-trigger loop."
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Set up Node.js
+      if: steps.guard.outputs.skip != 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install AppMap CLI and Claude Code
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        appmap_pkg="@appland/appmap"
+        if [[ -n "${{ inputs.appmap-cli-version }}" ]]; then
+          appmap_pkg="@appland/appmap@${{ inputs.appmap-cli-version }}"
+        fi
+        npm install -g "$appmap_pkg" @anthropic-ai/claude-code
+        echo "appmap: $(appmap --version || true)"
+        echo "claude: $(claude --version || true)"
+
+    - name: Install skills
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        SKILLS_REPO: ${{ inputs.skills-repo }}
+        SKILLS_REF: ${{ inputs.skills-ref }}
+      run: ${{ github.action_path }}/scripts/install-skills.sh
+
+    - name: Update gold traces
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        GOLD_TRACES_DIR: ${{ inputs.gold-traces-dir }}
+        CLAUDE_MODEL: ${{ inputs.claude-model }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: ${{ github.action_path }}/scripts/run-agent.sh update
+
+    # Commit everything the agent changed (baselines, config, added labels/tests)
+    # and push to the head branch before the review reads it from git history.
+    - name: Commit and push gold-trace updates
+      id: commit
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: ${{ github.action_path }}/scripts/commit-and-push.sh
+
+    - name: Review behavioral change
+      id: review
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        BASE_REVISION: ${{ inputs.base-revision }}
+        HEAD_REVISION: ${{ inputs.head-revision }}
+        CLAUDE_MODEL: ${{ inputs.claude-model }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: ${{ github.action_path }}/scripts/run-agent.sh review
+
+    - name: Publish review
+      if: steps.guard.outputs.skip != 'true' && steps.review.outputs.report-file != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPORT_FILE: ${{ steps.review.outputs.report-file }}
+      run: ${{ github.action_path }}/scripts/post-review.sh
