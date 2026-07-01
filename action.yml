@@ -91,15 +91,7 @@ runs:
     - id: guard
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: |
-        subject="$(git log -1 --pretty=%s || true)"
-        author="$(git log -1 --pretty=%an || true)"
-        if [[ "$author" == "github-actions[bot]" && "$subject" == chore\(gold-traces\):* ]]; then
-          echo "HEAD is an action-authored gold-traces commit; skipping to avoid a re-trigger loop."
-          echo "skip=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-        fi
+      run: ${{ github.action_path }}/scripts/guard.sh
 
     - name: Set up Node.js
       if: steps.guard.outputs.skip != 'true'

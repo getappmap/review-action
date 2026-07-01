@@ -15,8 +15,17 @@ SKILLS_DIR="${RUNNER_TEMP:-/tmp}/getappmap-skills"
 export SKILLS_DIR
 
 render_prompt() {
-  # Substitute ${VAR} placeholders in a template using the current environment.
-  envsubst < "$1"
+  # Substitute a known set of ${VAR} placeholders in a template from the
+  # environment. Pure bash (no envsubst dependency); only these names are
+  # expanded, and command substitution / backticks in the template are left
+  # untouched.
+  local content var val
+  content="$(cat "$1")"
+  for var in GOLD_TRACES_DIR BASE_REVISION HEAD_REVISION REPORT_FILE SKILLS_DIR; do
+    val="${!var:-}"
+    content="${content//\$\{$var\}/$val}"
+  done
+  printf '%s' "$content"
 }
 
 # ---- build the base prompt ---------------------------------------------------

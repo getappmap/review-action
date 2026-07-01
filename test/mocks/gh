@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Mock `gh` CLI for post-review.sh. Logs its arguments to $MOCK_GH_LOG and returns
+# canned output. Only the calls post-review.sh makes are handled:
+#   gh api repos/O/R/issues/N/comments --paginate --jq '...'  -> echo existing id
+#   gh api -X POST  repos/O/R/issues/N/comments   -F body=@f  -> succeed
+#   gh api -X PATCH repos/O/R/issues/comments/ID  -F body=@f  -> succeed
+set -euo pipefail
+
+[[ -n "${MOCK_GH_LOG:-}" ]] && printf '%s\n' "$*" >> "$MOCK_GH_LOG"
+
+# A listing call includes --paginate; return the configured existing id (or empty).
+for a in "$@"; do
+  if [[ "$a" == "--paginate" ]]; then
+    printf '%s' "${MOCK_GH_EXISTING_ID:-}"
+    exit 0
+  fi
+done
+
+# POST/PATCH: nothing to emit, just succeed.
+exit 0

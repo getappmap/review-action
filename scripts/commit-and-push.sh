@@ -32,11 +32,16 @@ if [[ -z "$branch" ]]; then
 fi
 
 origin_url="$(git remote get-url origin)"
-# Push with an explicit token-authenticated URL; strip any existing credentials.
-host_path="${origin_url#https://}"
-host_path="${host_path#*@}"
-authed_url="https://x-access-token:${GITHUB_TOKEN}@${host_path}"
+if [[ "$origin_url" == https://* ]]; then
+  # Push with an explicit token-authenticated URL; strip any existing credentials.
+  host_path="${origin_url#https://}"
+  host_path="${host_path#*@}"
+  push_target="https://x-access-token:${GITHUB_TOKEN}@${host_path}"
+else
+  # Non-https remote (e.g. ssh, or a file:// remote in tests): push to it as-is.
+  push_target="origin"
+fi
 
-git push "$authed_url" "HEAD:refs/heads/${branch}"
+git push "$push_target" "HEAD:refs/heads/${branch}"
 echo "Pushed gold-trace updates to ${branch}."
 echo "updated=true" >> "$GITHUB_OUTPUT"

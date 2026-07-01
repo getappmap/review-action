@@ -1,0 +1,4 @@
+name: sample-project
+appmap_dir: tmp/appmap
+packages:
+  - path: src

@@ -138,8 +138,22 @@ prompts/
   update-gold-traces.md        agent prompt for the appmap-gold-traces skill
   review.md                    agent prompt for the appmap-review skill
 scripts/
+  guard.sh                     re-trigger loop guard (skip our own commits)
   install-skills.sh            clone skills repo, symlink the used skills
-  run-agent.sh                 run Claude Code headless with a prompt template
+  run-agent.sh                 run the selected agent headless with a prompt template
   commit-and-push.sh           commit all agent changes, push to the PR branch
   post-review.sh               job summary + sticky PR comment
+test/                          self-test harness (see test/README.md)
 ```
+
+## Testing
+
+`test/` holds an offline, dependency-free harness that exercises the action's
+scripts by replacing the externals (the agent CLI, `gh`, and the git remote) with
+mocks — so it runs with no API keys and no network:
+
+```sh
+test/run.sh
+```
+
+See [`test/README.md`](test/README.md) for what each suite covers.
