@@ -11,9 +11,26 @@ branding:
   color: purple
 
 inputs:
+  agent:
+    description: |
+      Which agent runtime executes the skills: `claude` (Claude Code, default) or
+      `copilot` (GitHub Copilot CLI).
+    default: claude
   anthropic-api-key:
-    description: API key used to authenticate the Claude Code agent that runs the skills.
-    required: true
+    description: |
+      API key used to authenticate the Claude Code agent. Required when `agent` is
+      `claude`; ignored when `agent` is `copilot`.
+    required: false
+  copilot-token:
+    description: |
+      GitHub token with Copilot access, used when `agent` is `copilot`. The default
+      workflow `GITHUB_TOKEN` cannot use Copilot, so supply a PAT (or Copilot-enabled
+      token) via a secret. Falls back to `github-token` if unset.
+    required: false
+    default: ''
+  copilot-model:
+    description: Model override passed to the Copilot CLI (`--model`). Empty uses its default.
+    default: ''
   github-token:
     description: |
       Token used to push gold-trace updates to the PR branch and to post the review
@@ -90,7 +107,7 @@ runs:
       with:
         node-version: '20'
 
-    - name: Install AppMap CLI and Claude Code
+    - name: Install AppMap CLI and agent runtime
       if: steps.guard.outputs.skip != 'true'
       shell: bash
       run: |
@@ -99,9 +116,18 @@ runs:
         if [[ -n "${{ inputs.appmap-cli-version }}" ]]; then
           appmap_pkg="@appland/appmap@${{ inputs.appmap-cli-version }}"
         fi
-        npm install -g "$appmap_pkg" @anthropic-ai/claude-code
+        case "${{ inputs.agent }}" in
+          claude)  agent_pkg="@anthropic-ai/claude-code" ;;
+          copilot) agent_pkg="@github/copilot" ;;
+          *) echo "unknown agent: ${{ inputs.agent }} (expected 'claude' or 'copilot')" >&2; exit 2 ;;
+        esac
+        npm install -g "$appmap_pkg" "$agent_pkg"
         echo "appmap: $(appmap --version || true)"
-        echo "claude: $(claude --version || true)"
+        if [[ "${{ inputs.agent }}" == "claude" ]]; then
+          echo "claude: $(claude --version || true)"
+        else
+          echo "copilot: $(copilot --version || true)"
+        fi
 
     - name: Install skills
       if: steps.guard.outputs.skip != 'true'
@@ -109,6 +135,7 @@ runs:
       env:
         SKILLS_REPO: ${{ inputs.skills-repo }}
         SKILLS_REF: ${{ inputs.skills-ref }}
+        AGENT: ${{ inputs.agent }}
       run: ${{ github.action_path }}/scripts/install-skills.sh
 
     - name: Update gold traces
@@ -116,9 +143,13 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        AGENT: ${{ inputs.agent }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        COPILOT_TOKEN: ${{ inputs.copilot-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
         GOLD_TRACES_DIR: ${{ inputs.gold-traces-dir }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
       run: ${{ github.action_path }}/scripts/run-agent.sh update
 
@@ -140,10 +171,14 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
+        AGENT: ${{ inputs.agent }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        COPILOT_TOKEN: ${{ inputs.copilot-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
         BASE_REVISION: ${{ inputs.base-revision }}
         HEAD_REVISION: ${{ inputs.head-revision }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
       run: ${{ github.action_path }}/scripts/run-agent.sh review
 

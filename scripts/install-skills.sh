@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Install the getappmap/skills the review-action uses.
 #
-# Clone the whole skills repo into a working directory, then symlink ONLY the
-# skills this action uses into ~/.claude/skills. This avoids clobbering any other
-# skills the runner (or a self-hosted environment) may already have there.
+# Clone the whole skills repo into a working directory. For the `claude` agent,
+# symlink ONLY the skills this action uses into ~/.claude/skills — avoiding any
+# clobbering of skills the runner may already have there. For the `copilot` agent,
+# the skills are read directly from the working directory (Copilot doesn't load
+# ~/.claude/skills), so no symlinking is done.
 set -euo pipefail
 
 : "${SKILLS_REPO:?SKILLS_REPO is required}"
 : "${SKILLS_REF:?SKILLS_REF is required}"
+AGENT="${AGENT:-claude}"
 
 # Skills this action drives directly, plus the ones they reference at runtime
 # (appmap-review and appmap-gold-traces delegate labeling/recording to these).
@@ -24,6 +27,13 @@ if git clone --depth 1 --branch "$SKILLS_REF" "$SKILLS_REPO" "$WORKDIR" 2>/dev/n
 else
   git clone "$SKILLS_REPO" "$WORKDIR"
   git -C "$WORKDIR" checkout "$SKILLS_REF"
+fi
+
+echo "Skills cloned to $WORKDIR"
+
+if [[ "$AGENT" != "claude" ]]; then
+  echo "Agent '$AGENT' reads skills from $WORKDIR; skipping ~/.claude/skills symlinks."
+  exit 0
 fi
 
 mkdir -p "$CLAUDE_SKILLS_DIR"

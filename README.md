@@ -5,9 +5,9 @@ Maintain a project's **AppMap gold-trace** baseline and produce an interpreted
 which still pass the test suite (a dropped authorization guard, a new query inside a
 loop, a security-sensitive function that changed but gained no check).
 
-Unlike a compiled action, the work here is performed by an **AI coding agent**
-(Claude Code, headless) running two skills from
-[`getappmap/skills`](https://github.com/getappmap/skills):
+Unlike a compiled action, the work here is performed by an **AI coding agent** —
+either **Claude Code** or the **GitHub Copilot CLI** (headless) — running two skills
+from [`getappmap/skills`](https://github.com/getappmap/skills):
 
 - **`appmap-gold-traces`** — curates, records, and blesses the committed baseline of
   AppMap recordings.
@@ -16,10 +16,12 @@ Unlike a compiled action, the work here is performed by an **AI coding agent**
 
 ## What it does, in order
 
-1. **Install skills.** Clones `getappmap/skills` into a working directory and
-   **symlinks only the skills this action uses** (`appmap-gold-traces`,
-   `appmap-review`, and their `appmap-label`/`appmap-record` dependencies) into
-   `~/.claude/skills` — so it never clobbers other skills already installed there.
+1. **Install skills.** Clones `getappmap/skills` into a working directory. For the
+   `claude` agent it **symlinks only the skills this action uses**
+   (`appmap-gold-traces`, `appmap-review`, and their `appmap-label`/`appmap-record`
+   dependencies) into `~/.claude/skills` — so it never clobbers other skills already
+   installed there. For the `copilot` agent the skills are read directly from the
+   working directory (Copilot doesn't load `~/.claude/skills`).
 2. **Update gold traces.** The agent bootstraps the baseline if the project has none
    (figuring out how to run the project's tests **from the project itself** — there is
    no user to ask in CI), or re-records and blesses drift if it already exists.
@@ -39,12 +41,29 @@ blesses and commits drift automatically, and relies on the **review report** to 
 anything that looks like a regression. If you don't like the committed changes, edit
 the code and re-run — the action will re-record and amend the baseline.
 
+## Choosing the agent runtime
+
+Set the `agent` input to pick which LLM agent runs the skills:
+
+- **`claude`** (default) — Claude Code. Needs an `anthropic-api-key`.
+- **`copilot`** — GitHub Copilot CLI. Needs a Copilot-enabled GitHub token via
+  `copilot-token`. The default workflow `GITHUB_TOKEN` **cannot** use Copilot, so
+  supply a PAT (or other Copilot-enabled token) as a secret.
+
+```yaml
+      - uses: getappmap/review-action@v1
+        with:
+          agent: copilot
+          copilot-token: ${{ secrets.COPILOT_TOKEN }}
+```
+
 ## Prerequisites
 
 - **A runnable test environment.** Recording executes the project's tests under the
   AppMap recorder. Your workflow **must** set up the language toolchain, dependencies,
   and any services/DB **before** this action runs. The action cannot provide this.
-- **An Anthropic API key** for the Claude Code agent (`anthropic-api-key`).
+- **Agent credentials:** an `anthropic-api-key` (for `agent: claude`) **or** a
+  Copilot-enabled `copilot-token` (for `agent: copilot`).
 - **Write permissions:** `contents: write` (push baselines) and
   `pull-requests: write` (post the comment).
 
@@ -80,7 +99,10 @@ jobs:
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `anthropic-api-key` | — (**required**) | API key for the Claude Code agent. |
+| `agent` | `claude` | Agent runtime: `claude` (Claude Code) or `copilot` (GitHub Copilot CLI). |
+| `anthropic-api-key` | — | API key for Claude Code. Required when `agent: claude`. |
+| `copilot-token` | `github-token` | Copilot-enabled GitHub token. Required when `agent: copilot`. |
+| `copilot-model` | (Copilot default) | Model override for the Copilot CLI (`--model`). |
 | `github-token` | `${{ github.token }}` | Pushes baselines and posts the PR comment. |
 | `base-revision` | `${{ github.base_ref }}` | Review baseline (any git ref). |
 | `head-revision` | `${{ github.sha }}` | Review head (any git ref). |
