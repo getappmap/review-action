@@ -113,7 +113,9 @@ runs:
           copilot) agent_pkg="@github/copilot" ;;
           *) echo "unknown agent: ${{ inputs.agent }} (expected 'claude' or 'copilot')" >&2; exit 2 ;;
         esac
-        npm install -g "$appmap_pkg" "$agent_pkg"
+        # --omit=optional: skip optional native deps (e.g. fsevents, which is
+        # macOS-only via chokidar and fails node-gyp on Linux runners).
+        npm install -g --omit=optional "$appmap_pkg" "$agent_pkg"
         echo "appmap: $(appmap --version || true)"
         if [[ "${{ inputs.agent }}" == "claude" ]]; then
           echo "claude: $(claude --version || true)"
