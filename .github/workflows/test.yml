@@ -1,0 +1,16 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The harness is offline and dependency-free (bash + git; jq is preinstalled
+      # on ubuntu-latest and used only by the post-review suite).
+      - name: Run self-test harness
+        run: test/run.sh
