@@ -14,3 +14,24 @@ jobs:
       # on ubuntu-latest and used only by the post-review suite).
       - name: Run self-test harness
         run: test/run.sh
+
+  # Consumers pin `getappmap/review-action@v1`. Keep that floating major tag on
+  # the latest green commit of main, so PR merges (and direct pushes) release
+  # automatically. Immutable vX.Y.Z tags are cut by hand for milestones; on a
+  # breaking change, bump MAJOR_TAG here and start the new line (see CLAUDE.md).
+  move-major-tag:
+    needs: self-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      MAJOR_TAG: v1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move ${{ env.MAJOR_TAG }} to this commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$MAJOR_TAG" -m "$MAJOR_TAG @ $GITHUB_SHA"
+          git push origin "$MAJOR_TAG" --force
