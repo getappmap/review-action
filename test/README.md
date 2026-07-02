@@ -39,7 +39,8 @@ suites/
   install-skills.test.sh   symlink only used skills; never clobber; copilot skips
   run-agent.test.sh        prompt render, agent branching, token checks, report out
   commit-and-push.test.sh  no-op when clean; [skip ci] bot commit; push to remote
-  post-review.test.sh      summary always; PR create-vs-update; non-PR skips gh
+  post-review.test.sh      summary always; PR create-vs-update; non-PR skips gh;
+                           per-matrix comment-tag markers
 ```
 
 ## Scope

@@ -28,6 +28,7 @@ run_post() { # event-json-file
   SUMMARY_OUT="$summary" GHLOG_OUT="$ghlog" \
   REPORT_FILE="$REPORT" GITHUB_TOKEN=x GITHUB_REPOSITORY="octo/repo" \
   GITHUB_STEP_SUMMARY="$summary" GITHUB_EVENT_PATH="$1" \
+  COMMENT_TAG="${COMMENT_TAG:-}" \
   MOCK_GH_LOG="$ghlog" MOCK_GH_EXISTING_ID="${MOCK_GH_EXISTING_ID:-}" \
     bash "$ROOT/scripts/post-review.sh" >/dev/null 2>&1
 }
@@ -51,5 +52,21 @@ MOCK_GH_EXISTING_ID="999" run_post "$TMP/pr.json"
 ghlog="$(cat "$TMP/ghlog")"
 assert_contains "$ghlog" "issues/comments/999" "PATCH targets the existing comment id"
 assert_contains "$ghlog" "PATCH" "existing comment uses PATCH"
+
+# --- comment tag: marker carries the tag, so each matrix entry owns a comment ---
+MOCK_GH_EXISTING_ID="" COMMENT_TAG="services/web" run_post "$TMP/pr.json"
+ghlog="$(cat "$TMP/ghlog")"
+assert_contains "$ghlog" "<!-- appmap-behavioral-review:services/web -->" "tagged marker used for lookup"
+
+# --- "." tag (working-directory default) means untagged: legacy marker ---
+MOCK_GH_EXISTING_ID="" COMMENT_TAG="." run_post "$TMP/pr.json"
+ghlog="$(cat "$TMP/ghlog")"
+assert_contains "$ghlog" "<!-- appmap-behavioral-review -->" "dot tag falls back to legacy marker"
+assert_not_contains "$ghlog" "appmap-behavioral-review:" "dot tag adds no tag suffix"
+
+# --- unsafe characters in the tag are normalized ---
+MOCK_GH_EXISTING_ID="" COMMENT_TAG='we"b >1' run_post "$TMP/pr.json"
+ghlog="$(cat "$TMP/ghlog")"
+assert_contains "$ghlog" "<!-- appmap-behavioral-review:we-b-1 -->" "tag is sanitized for the marker"
 
 finish

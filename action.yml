@@ -56,6 +56,14 @@ inputs:
       Directory the agent and gold-traces engine run from. Set to a package root in a
       monorepo. Defaults to the repository root.
     default: '.'
+  comment-tag:
+    description: |
+      Distinguishes this run's sticky PR comment when the action runs more than once
+      per PR (e.g. a matrix). Each distinct tag gets its own comment, updated in place
+      on re-runs; set it to a stable per-entry key such as the matrix entry name.
+      Defaults to `working-directory`, so monorepo matrix runs get separate comments
+      automatically. `.` (the `working-directory` default) means untagged.
+    default: ''
   skills-repo:
     description: Git URL of the skills repository to install.
     default: https://github.com/getappmap/skills.git
@@ -191,4 +199,5 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPORT_FILE: ${{ steps.review.outputs.report-file }}
+        COMMENT_TAG: ${{ inputs.comment-tag || inputs.working-directory }}
       run: ${{ github.action_path }}/scripts/post-review.sh

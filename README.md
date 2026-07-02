@@ -31,7 +31,10 @@ from [`getappmap/skills`](https://github.com/getappmap/skills):
 4. **Review.** The agent compares the (freshly committed) head traces against the base
    revision and writes the interpreted review.
 5. **Publish.** The review is posted as a **sticky PR comment** and written to the
-   **job summary**.
+   **job summary**. Re-runs update the comment in place. When the action runs more
+   than once per PR (e.g. a matrix), set `comment-tag` to a stable per-entry key —
+   each tag owns its own comment; it defaults to `working-directory`, so a monorepo
+   matrix over package roots separates automatically.
 
 ### On automatic blessing
 
@@ -108,6 +111,7 @@ jobs:
 | `head-revision` | `${{ github.sha }}` | Review head (any git ref). |
 | `gold-traces-dir` | `gold_traces` | Managed gold-traces dir (engine `--dir`). |
 | `working-directory` | `.` | Dir the agent/engine run from (a package root in a monorepo). |
+| `comment-tag` | `working-directory` | Per-entry key (e.g. `matrix.name`) giving each matrix run its own sticky PR comment. `.` means untagged. |
 | `skills-repo` | `https://github.com/getappmap/skills.git` | Skills repository URL. |
 | `skills-ref` | `main` | Branch/tag/SHA of the skills repo to pin. |
 | `claude-model` | (Claude Code default) | Model override (`--model`). |

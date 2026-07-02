@@ -32,3 +32,24 @@ jobs:
       - uses: getappmap/review-action@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+# --- Monorepo / matrix variant ---
+# Run the action once per package. Each entry gets its own sticky PR comment:
+# comment-tag defaults to working-directory, so no extra wiring is needed —
+# set it explicitly (e.g. to a matrix name) if entries share a directory.
+#
+#  review:
+#    runs-on: ubuntu-latest
+#    strategy:
+#      matrix:
+#        package: [services/api, services/web]
+#    steps:
+#      - uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#          ref: ${{ github.head_ref }}
+#      # ...per-package test setup...
+#      - uses: getappmap/review-action@v1
+#        with:
+#          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+#          working-directory: ${{ matrix.package }}

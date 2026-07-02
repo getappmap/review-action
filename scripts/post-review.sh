@@ -27,7 +27,22 @@ if [[ -z "$pr_number" ]]; then
 fi
 
 # Sticky comment: find our previous comment by a hidden marker and update it.
-MARKER="<!-- appmap-behavioral-review -->"
+# COMMENT_TAG (optional) distinguishes comments when the action runs more than
+# once per PR (e.g. a matrix): each distinct tag owns its own comment. "." means
+# untagged — the default working-directory — so single-job callers keep the
+# legacy marker and their existing comment.
+tag="${COMMENT_TAG:-}"
+if [[ "$tag" == "." ]]; then
+  tag=""
+fi
+# Restrict to characters safe inside the HTML-comment marker and the jq filter.
+tag="$(printf '%s' "$tag" | tr -cs 'A-Za-z0-9._/-' '-')"
+
+if [[ -n "$tag" ]]; then
+  MARKER="<!-- appmap-behavioral-review:${tag} -->"
+else
+  MARKER="<!-- appmap-behavioral-review -->"
+fi
 body_file="$(mktemp)"
 { printf '%s\n\n' "$MARKER"; cat "$REPORT_FILE"; } > "$body_file"
 
