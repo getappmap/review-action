@@ -49,4 +49,24 @@ assert_ok "commit-and-push with no changes" run_commit
 assert_contains "$(cat "$TMP/out")" "updated=false" "reports updated=false"
 assert_eq "$before" "$(git -C "$BARE" rev-parse main)" "remote unchanged when clean"
 
+# --- concurrent writer: first push is rejected, then rebase + retry succeeds ---
+: > "$TMP/out"
+# A second clone advances the remote branch behind our back (like the other
+# matrix leg or the Copilot agent pushing first).
+OTHER="$TMP/other"
+git clone -q "$BARE" "$OTHER"
+git -C "$OTHER" config user.name other
+git -C "$OTHER" config user.email other@t
+echo concurrent > "$OTHER/CONCURRENT"
+git -C "$OTHER" add -A
+git -C "$OTHER" commit -q -m "concurrent change"
+git -C "$OTHER" push -q origin main
+# Our repo has its own new change; its first push will be rejected.
+echo '{"a":1}' > "$REPO/gold_traces/baseline/appmaps/y.appmap.json"
+assert_ok "commit-and-push rebases over a concurrent push" run_commit
+assert_contains "$(cat "$TMP/out")" "updated=true" "reports updated=true after retry"
+tree="$(git -C "$BARE" ls-tree -r --name-only main)"
+assert_contains "$tree" "gold_traces/baseline/appmaps/y.appmap.json" "our trace landed after rebase"
+assert_contains "$tree" "CONCURRENT" "the concurrent change is preserved"
+
 finish

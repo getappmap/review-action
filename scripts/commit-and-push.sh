@@ -42,6 +42,28 @@ else
   push_target="origin"
 fi
 
-git push "$push_target" "HEAD:refs/heads/${branch}"
+# Resilient push: the PR branch has multiple concurrent writers — the matrix
+# legs (one per package), overlapping runs, and other agents. On rejection,
+# fetch the latest branch tip and rebase our commit onto it, then retry. Gold
+# updates from different legs touch different files, so a rebase almost always
+# applies cleanly; a genuine conflict aborts and fails loudly.
+attempt=0
+max_attempts=6
+until git push "$push_target" "HEAD:refs/heads/${branch}"; do
+  attempt=$((attempt + 1))
+  if [[ $attempt -ge $max_attempts ]]; then
+    echo "Push still rejected after ${attempt} attempts; giving up." >&2
+    exit 1
+  fi
+  echo "Push rejected (attempt ${attempt}/${max_attempts}); fetching + rebasing onto ${branch}..."
+  # Small jittered backoff so concurrent legs don't retry in lockstep.
+  sleep "$(( (RANDOM % 5) + 1 ))"
+  git fetch "$push_target" "$branch"
+  if ! git rebase FETCH_HEAD; then
+    git rebase --abort || true
+    echo "Rebase onto ${branch} conflicted; cannot auto-resolve. Failing." >&2
+    exit 1
+  fi
+done
 echo "Pushed gold-trace updates to ${branch}."
 echo "updated=true" >> "$GITHUB_OUTPUT"
