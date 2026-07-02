@@ -57,6 +57,10 @@ OTHER="$TMP/other"
 git clone -q "$BARE" "$OTHER"
 git -C "$OTHER" config user.name other
 git -C "$OTHER" config user.email other@t
+# Check out main explicitly: the bare remote's default HEAD may be master
+# (depending on the runner's init.defaultBranch), so a plain clone might not
+# land on main even though origin/main exists.
+git -C "$OTHER" checkout -q -B main origin/main
 echo concurrent > "$OTHER/CONCURRENT"
 git -C "$OTHER" add -A
 git -C "$OTHER" commit -q -m "concurrent change"
