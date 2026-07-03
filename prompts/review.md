@@ -15,10 +15,9 @@ Notes:
   in the report and review what you can (a clean/So-far baseline is a valid report) —
   do not fail.
 
-Follow the skill's review recipe and its **Report format** exactly (Feature List,
-Coverage Matrix, Suggested Labels, Behavioral Drift, Unintended Side Effects,
-Suggestions, Tests to Synthesize, SQL/HTTP passes, Summary). A clean compare is a
-valid report — state that no behavioral drift was found rather than omitting it.
+Follow the skill's review recipe and its **Report format** exactly — the skill is
+the sole authority on the report's structure and style. A clean compare is a valid
+report; write it rather than writing nothing.
 
 **Write the final Markdown report to this file — nothing else needs to go there:**
 
