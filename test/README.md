@@ -49,7 +49,8 @@ suites/
   usage-report.test.sh     usage.mjs aggregation: cost/premium-request footers,
                            step outputs, empty no-op
   usage-normalize.test.sh  usage.mjs parsing of VENDORED REAL agent output
-                           (fixtures/agent-output/) — genuine CLI shapes, not mocks
+                           (fixtures/agent-output/) — genuine CLI shapes, not mocks;
+                           live-progress stream filter (tee + tool/message lines)
 ```
 
 ## Scope

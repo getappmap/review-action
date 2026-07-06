@@ -54,6 +54,28 @@ rec="$(cat "$TMP/copilot-bare.json")"
 assert_contains "$rec" '"premium_requests": 1' "premium requests survive without the log"
 assert_contains "$rec" '"input_tokens": null' "input tokens honestly null without the log"
 
+# --- stream filter: live progress lines + verbatim tee to the raw file ---
+assert_ok "stream filter runs on a real claude stream" \
+  bash -c "node '$ROOT/scripts/usage.mjs' stream claude --raw-out '$TMP/teed.jsonl' < '$FIXTURES/claude-stream.jsonl'"
+assert_contains "$LAST_OUTPUT" "→ Bash ls -la" "tool calls shown as progress"
+assert_contains "$LAST_OUTPUT" "● " "assistant message shown as progress"
+assert_contains "$LAST_OUTPUT" "✓ agent finished: 2 turns" "completion line shown"
+assert_ok "raw stream teed verbatim" diff "$FIXTURES/claude-stream.jsonl" "$TMP/teed.jsonl"
+
+# --- normalize accepts the stream format (same result event) ---
+assert_ok "claude normalize on a stream-json capture" \
+  node "$ROOT/scripts/usage.mjs" normalize claude "$FIXTURES/claude-stream.jsonl" \
+    --mode update --out "$TMP/claude-stream.json"
+rec="$(cat "$TMP/claude-stream.json")"
+assert_contains "$rec" '"num_turns": 2' "turns from the stream's result event"
+assert_not_contains "$rec" '"cost_usd": null' "cost from the stream's result event"
+
+# --- --no-log suppresses the final-message re-emission ---
+assert_ok "normalize --no-log" \
+  node "$ROOT/scripts/usage.mjs" normalize claude "$FIXTURES/claude-result.json" \
+    --mode review --out "$TMP/quiet.json" --no-log
+assert_eq "" "$LAST_OUTPUT" "no message re-emitted with --no-log"
+
 # --- rendering respects each agent's input-token semantics ---
 # Copilot's inputTokens already includes cache writes; claude's excludes them.
 DIR="$TMP/render"; mkdir -p "$DIR"

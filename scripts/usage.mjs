@@ -5,16 +5,23 @@
 // (its billing unit) and no dollar figure, so none is shown for it.
 //
 // Subcommands:
-//   normalize claude  <raw-result.json>  --mode <update|review> --out <file>
-//   normalize copilot <raw-stream.jsonl> --mode <update|review> --out <file> [--state-dir <dir>]
+//   stream <claude|copilot> --raw-out <file>
+//       Reads the agent's JSONL event stream on stdin, tees every line to
+//       --raw-out, and prints a compact live progress line per meaningful
+//       event (tool calls, assistant messages) so the CI log shows what the
+//       agent is doing during a long run.
+//   normalize claude  <raw.json|raw.jsonl>  --mode <update|review> --out <file>
+//   normalize copilot <raw-stream.jsonl>    --mode <update|review> --out <file> [--state-dir <dir>]
 //       Writes the normalized usage record to --out and prints the agent's
-//       final message(s) to stdout, for the CI job log.
+//       final message(s) to stdout (suppress with --no-log when `stream`
+//       already showed them live).
 //   report
 //       Aggregates $USAGE_DIR/usage-*.json into a Markdown footer
 //       ($USAGE_DIR/usage-footer.md) and $GITHUB_OUTPUT step outputs.
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync, createWriteStream } from 'node:fs';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 
 function fail(message) {
   console.error(`usage.mjs: ${message}`);
@@ -26,7 +33,10 @@ function parseFlags(argv) {
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i].startsWith('--')) {
-      flags[argv[i].slice(2)] = argv[++i];
+      const key = argv[i].slice(2);
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith('--')) flags[key] = true; // boolean flag
+      else flags[key] = argv[++i];
     } else {
       positional.push(argv[i]);
     }
@@ -35,11 +45,75 @@ function parseFlags(argv) {
 }
 
 // ---------------------------------------------------------------------------
+// stream
+// ---------------------------------------------------------------------------
+
+function truncate(s, n = 160) {
+  const flat = String(s).replace(/\s+/g, ' ').trim();
+  return flat.length > n ? `${flat.slice(0, n)}…` : flat;
+}
+
+function toolSummary(input) {
+  if (!input || typeof input !== 'object') return '';
+  const detail = input.command ?? input.file_path ?? input.pattern ?? input.description ?? input.prompt;
+  return truncate(detail ?? JSON.stringify(input), 140);
+}
+
+// The progress vocabulary, per agent. Deliberately sparse: tool calls and
+// assistant messages are the narrative; thinking/deltas/tool results are noise.
+function* progressLines(agent, e) {
+  if (agent === 'claude') {
+    if (e.type === 'system' && e.subtype === 'init') {
+      yield `▸ agent session started (model ${e.model})`;
+    } else if (e.type === 'assistant') {
+      for (const block of e.message?.content ?? []) {
+        if (block.type === 'tool_use') yield `→ ${block.name} ${toolSummary(block.input)}`;
+        else if (block.type === 'text' && block.text?.trim()) yield `● ${truncate(block.text)}`;
+      }
+    } else if (e.type === 'result') {
+      yield `✓ agent finished: ${e.num_turns} turns in ${humanDuration(e.duration_ms)}`;
+    }
+  } else {
+    if (e.type === 'assistant.message' && e.data?.content?.trim()) {
+      yield `● ${truncate(e.data.content)}`;
+    } else if (/tool|command|exec/i.test(e.type ?? '') && !/status|loaded/.test(e.type ?? '')) {
+      yield `→ ${e.type} ${truncate(JSON.stringify(e.data ?? ''), 120)}`;
+    } else if (e.type === 'result') {
+      yield `✓ agent finished in ${humanDuration(e.usage?.sessionDurationMs)}`;
+    }
+  }
+}
+
+async function stream(argv) {
+  const { flags, positional } = parseFlags(argv);
+  const [agent] = positional;
+  const rawOut = flags['raw-out'];
+  if (!agent || !rawOut) fail('stream needs: <claude|copilot> --raw-out <file>');
+  const out = createWriteStream(rawOut);
+  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
+  for await (const line of rl) {
+    out.write(line + '\n');
+    if (!line.trim()) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue; // interleaved non-JSON noise stays in the raw file only
+    }
+    for (const msg of progressLines(agent, event)) console.log(msg);
+  }
+  await new Promise((resolve) => out.end(resolve));
+}
+
+// ---------------------------------------------------------------------------
 // normalize
 // ---------------------------------------------------------------------------
 
 function normalizeClaude(raw, mode) {
-  const r = JSON.parse(raw);
+  // Accepts both output formats: `json` (one result object) and `stream-json`
+  // (JSONL events ending in a result event) — the result payload is the same.
+  const r = parseJsonl(raw).findLast((e) => e.type === 'result');
+  if (!r) throw new Error('no result event in the agent output');
   const usage = r.usage ?? {};
   return {
     record: {
@@ -161,7 +235,7 @@ function normalize(argv) {
   } catch (e) {
     fail(`could not normalize ${agent} output: ${e.message}`);
   }
-  if (normalized.log) console.log(normalized.log);
+  if (normalized.log && !('no-log' in flags)) console.log(normalized.log);
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +390,7 @@ function report() {
 // ---------------------------------------------------------------------------
 
 const [command, ...rest] = process.argv.slice(2);
-if (command === 'normalize') normalize(rest);
+if (command === 'stream') await stream(rest);
+else if (command === 'normalize') normalize(rest);
 else if (command === 'report') report();
-else fail(`unknown command: ${command ?? '(none)'} (expected 'normalize' or 'report')`);
+else fail(`unknown command: ${command ?? '(none)'} (expected 'stream', 'normalize', or 'report')`);

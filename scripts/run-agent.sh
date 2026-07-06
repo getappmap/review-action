@@ -24,10 +24,20 @@ USAGE_DIR="${USAGE_DIR:-${RUNNER_TEMP:-/tmp}/appmap-usage}"
 mkdir -p "$USAGE_DIR"
 
 normalize_usage() { # <claude|copilot> <raw-file>
+  # --no-log: the stream filter already showed the agent's messages live.
   node "$ACTION_PATH/scripts/usage.mjs" normalize "$1" "$2" \
     --mode "$mode" --out "$USAGE_DIR/usage-$mode.json" \
     --state-dir "${COPILOT_STATE_DIR:-$HOME/.copilot/session-state}" \
-    || cat "$2"
+    --no-log \
+    || cat "$2" 2>/dev/null || true
+}
+
+# Live progress: tee the agent's event stream through the usage.mjs filter,
+# which forwards every line to the raw capture file and prints one compact
+# line per tool call / assistant message — so the job log shows what the
+# agent is doing during a long run instead of going silent.
+stream_filter() { # <claude|copilot> <raw-file>
+  node "$ACTION_PATH/scripts/usage.mjs" stream "$1" --raw-out "$2" || cat > "$2"
 }
 
 render_prompt() {
@@ -74,15 +84,17 @@ case "$AGENT" in
     [[ -n "${CLAUDE_MODEL:-}" ]] && model_args=(--model "$CLAUDE_MODEL")
     # Claude auto-loads the skills from ~/.claude/skills (symlinked at install).
     # The CI job is the sandbox, so tool permissions are bypassed.
-    # JSON output carries the same final message as text mode, plus the usage
-    # accounting (tokens, cost, models); the message is re-emitted to the log.
-    raw="$USAGE_DIR/raw-$mode-claude.json"
+    # stream-json emits every tool call and message as it happens (live
+    # progress via stream_filter) and ends with the same result event that
+    # carries the usage accounting (tokens, cost, models).
+    raw="$USAGE_DIR/raw-$mode-claude.jsonl"
     set +e
     claude -p "$prompt" \
       --dangerously-skip-permissions \
-      --output-format json \
-      "${model_args[@]}" > "$raw"
-    agent_status=$?
+      --output-format stream-json --verbose \
+      "${model_args[@]}" \
+      | stream_filter claude "$raw"
+    agent_status="${PIPESTATUS[0]}"
     set -e
     normalize_usage claude "$raw"
     [[ "$agent_status" -eq 0 ]] || exit "$agent_status"
@@ -111,16 +123,17 @@ placeholder). Do not ask questions; you are non-interactive.
 
 "
     # --allow-all-tools runs fully non-interactively (the CI job is the sandbox).
-    # JSON output is a JSONL event stream ending in a `result` event with the
-    # usage accounting (premium requests, durations); the assistant's messages
-    # are re-emitted to the log.
+    # JSON output is a live JSONL event stream (progress via stream_filter)
+    # ending in a `result` event with the usage accounting (premium requests,
+    # durations).
     raw="$USAGE_DIR/raw-$mode-copilot.jsonl"
     set +e
     copilot -p "${preamble}${prompt}" \
       --allow-all-tools \
       --output-format json \
-      "${model_args[@]}" > "$raw"
-    agent_status=$?
+      "${model_args[@]}" \
+      | stream_filter copilot "$raw"
+    agent_status="${PIPESTATUS[0]}"
     set -e
     normalize_usage copilot "$raw"
     [[ "$agent_status" -eq 0 ]] || exit "$agent_status"

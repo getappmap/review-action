@@ -39,7 +39,7 @@ fi
 # Claude Code prints one result object; the Copilot CLI prints a JSONL event
 # stream ending in a `result` event.
 emit_output() { # <human message>
-  if [[ "$output_format" != "json" ]]; then
+  if [[ "$output_format" != "json" && "$output_format" != "stream-json" ]]; then
     echo "$1"
   elif [[ "$agent_name" == "claude" ]]; then
     cat <<EOF

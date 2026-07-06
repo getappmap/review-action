@@ -6,6 +6,7 @@ Real output captured from the actual agent CLIs, used to test
 | File | Source | Captured |
 | --- | --- | --- |
 | `claude-result.json` | `claude -p … --output-format json`, Claude Code 2.1.199 | 2026-07-06 |
+| `claude-stream.jsonl` | `claude -p … --output-format stream-json --verbose` (includes a Bash tool call), Claude Code 2.1.199 | 2026-07-06 |
 | `copilot-stream.jsonl` | `copilot -p … --output-format json`, Copilot CLI 1.0.63 | 2026-07-06 |
 | `copilot-session-state/<sessionId>/events.jsonl` | the Copilot CLI's own session log for the same run (`~/.copilot/session-state/`) | 2026-07-06 |
 
