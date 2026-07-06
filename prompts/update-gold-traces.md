@@ -39,3 +39,9 @@ Do this:
 
 **Do not run `git commit` or `git push`.** The CI action commits and pushes all your
 changes after you finish. Just leave the working tree with your changes in place.
+
+**Do not write to `$GITHUB_STEP_SUMMARY`.** The action owns the run's reporting (the
+review report and the usage footer); an extra summary block — especially one that
+captures a transient mid-work state, like a test run that failed before you fixed the
+environment — reads as a conflicting result next to the real review. Your live output
+already appears in the job log.
