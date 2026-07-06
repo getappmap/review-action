@@ -109,11 +109,20 @@ reset
 AGENT=claude AGENT_PACKAGE=@anthropic-ai/claude-code AGENT_VERSION=9.9.9 PREFIX="$TMP/agent-tools" \
   assert_ok "install-agent (fresh)" bash "$ROOT/scripts/install-agent.sh"
 assert_file "$TMP/agent-tools/node_modules/.bin/claude" "agent binary installed"
-assert_contains "$(cat "$MOCK_NPM_LOG")" "install --prefix $TMP/agent-tools --omit=optional @anthropic-ai/claude-code@9.9.9" "npm install pinned to the resolved version"
+assert_contains "$(cat "$MOCK_NPM_LOG")" "install --prefix $TMP/agent-tools @anthropic-ai/claude-code@9.9.9" "npm install pinned to the resolved version, optional deps included"
 assert_contains "$(cat "$GITHUB_PATH")" "$TMP/agent-tools/node_modules/.bin" "agent bin dir added to PATH"
 reset
 AGENT=claude AGENT_PACKAGE=@anthropic-ai/claude-code AGENT_VERSION=9.9.9 PREFIX="$TMP/agent-tools" \
   assert_ok "install-agent (cached)" bash "$ROOT/scripts/install-agent.sh"
 assert_eq "" "$(cat "$MOCK_NPM_LOG")" "cache hit runs no npm"
+
+# --- install-agent: broken cached install -> wiped and reinstalled ---
+reset
+printf '#!/bin/sh\necho broken >&2\nexit 1\n' > "$TMP/agent-tools/node_modules/.bin/claude"
+chmod +x "$TMP/agent-tools/node_modules/.bin/claude"
+AGENT=claude AGENT_PACKAGE=@anthropic-ai/claude-code AGENT_VERSION=9.9.9 PREFIX="$TMP/agent-tools" \
+  assert_ok "install-agent (broken cache)" bash "$ROOT/scripts/install-agent.sh"
+assert_contains "$(cat "$MOCK_NPM_LOG")" "install --prefix" "broken cached install is reinstalled"
+assert_ok "reinstalled agent binary works" "$TMP/agent-tools/node_modules/.bin/claude" --version
 
 finish
