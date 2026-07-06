@@ -8,6 +8,20 @@ set -euo pipefail
 
 [[ -n "${MOCK_GH_LOG:-}" ]] && printf '%s\n' "$*" >> "$MOCK_GH_LOG"
 
+# appmap-js release listing (resolve-versions.sh): canned page with a
+# non-appmap release first, then the appmap release with all platform assets.
+for a in "$@"; do
+  if [[ "$a" == repos/getappmap/appmap-js/releases* ]]; then
+    cat <<'EOF'
+[{"name":"@appland/scanner-v1.0.0","assets":[]},
+ {"name":"@appland/appmap-v9.9.9","tag_name":"@appland/appmap-v9.9.9",
+  "assets":[{"name":"appmap-linux-x64"},{"name":"appmap-linux-arm64"},
+            {"name":"appmap-macos-x64"},{"name":"appmap-macos-arm64"}]}]
+EOF
+    exit 0
+  fi
+done
+
 # A listing call includes --paginate; return the configured existing id (or empty).
 for a in "$@"; do
   if [[ "$a" == "--paginate" ]]; then

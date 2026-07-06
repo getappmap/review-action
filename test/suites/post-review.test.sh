@@ -28,7 +28,7 @@ run_post() { # event-json-file
   SUMMARY_OUT="$summary" GHLOG_OUT="$ghlog" \
   REPORT_FILE="$REPORT" GITHUB_TOKEN=x GITHUB_REPOSITORY="octo/repo" \
   GITHUB_STEP_SUMMARY="$summary" GITHUB_EVENT_PATH="$1" \
-  COMMENT_TAG="${COMMENT_TAG:-}" \
+  COMMENT_TAG="${COMMENT_TAG:-}" USAGE_FOOTER="${USAGE_FOOTER:-}" \
   MOCK_GH_LOG="$ghlog" MOCK_GH_EXISTING_ID="${MOCK_GH_EXISTING_ID:-}" \
     bash "$ROOT/scripts/post-review.sh" >/dev/null 2>&1
 }
@@ -68,5 +68,13 @@ assert_not_contains "$ghlog" "appmap-behavioral-review:" "dot tag adds no tag su
 MOCK_GH_EXISTING_ID="" COMMENT_TAG='we"b >1' run_post "$TMP/pr.json"
 ghlog="$(cat "$TMP/ghlog")"
 assert_contains "$ghlog" "<!-- appmap-behavioral-review:we-b-1 -->" "tag is sanitized for the marker"
+
+# --- usage footer: appended to the summary when present, ignored when absent ---
+FOOTER="$TMP/usage-footer.md"
+printf '### Agent usage\n\n| total | $0.84 |\n' > "$FOOTER"
+USAGE_FOOTER="$FOOTER" run_post "$TMP/pr.json"
+assert_contains "$(cat "$TMP/summary")" "Agent usage" "usage footer appended to summary"
+USAGE_FOOTER="$TMP/missing-footer.md" run_post "$TMP/pr.json"
+assert_not_contains "$(cat "$TMP/summary")" "Agent usage" "missing footer file is ignored"
 
 finish

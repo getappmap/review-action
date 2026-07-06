@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Mock `npm` for the install-tools suite. Handles only what the scripts use:
+#   npm view <pkg> version                    -> canned version
+#   npm install --prefix <dir> ... <pkg>@<v>  -> creates a stub agent binary
+# Logs every invocation to $MOCK_NPM_LOG.
+set -euo pipefail
+
+if [[ -n "${MOCK_NPM_LOG:-}" ]]; then
+  printf '%s\n' "$*" >> "$MOCK_NPM_LOG"
+fi
+
+case "${1:-}" in
+  view)
+    echo "9.9.9"
+    ;;
+  install)
+    prefix=""
+    pkg=""
+    args=("$@")
+    for ((i = 1; i < ${#args[@]}; i++)); do
+      case "${args[$i]}" in
+        --prefix) prefix="${args[$((i + 1))]}" ;;
+        --omit=*) ;;
+        @*) pkg="${args[$i]}" ;;
+      esac
+    done
+    [[ -n "$prefix" && -n "$pkg" ]] || { echo "mock npm: unexpected install args: $*" >&2; exit 2; }
+    case "$pkg" in
+      @anthropic-ai/claude-code@*) bin=claude ;;
+      @github/copilot@*) bin=copilot ;;
+      *) echo "mock npm: unexpected package: $pkg" >&2; exit 2 ;;
+    esac
+    mkdir -p "$prefix/node_modules/.bin"
+    printf '#!/bin/sh\necho mock %s 9.9.9\n' "$bin" > "$prefix/node_modules/.bin/$bin"
+    chmod +x "$prefix/node_modules/.bin/$bin"
+    ;;
+  *)
+    echo "mock npm: unhandled command: $*" >&2
+    exit 2
+    ;;
+esac

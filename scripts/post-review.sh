@@ -10,9 +10,22 @@ if [[ ! -s "$REPORT_FILE" ]]; then
   exit 1
 fi
 
+# Optional agent-usage footer (written by usage.mjs report).
+footer_file=""
+if [[ -n "${USAGE_FOOTER:-}" && -s "${USAGE_FOOTER}" ]]; then
+  footer_file="$USAGE_FOOTER"
+fi
+
+append_footer() { # <target-file>
+  if [[ -n "$footer_file" ]]; then
+    { printf '\n\n---\n\n'; cat "$footer_file"; } >> "$1"
+  fi
+}
+
 # Job summary — always available.
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   cat "$REPORT_FILE" >> "$GITHUB_STEP_SUMMARY"
+  append_footer "$GITHUB_STEP_SUMMARY"
 fi
 
 # PR comment — only when this run is associated with a pull request.
@@ -45,6 +58,7 @@ else
 fi
 body_file="$(mktemp)"
 { printf '%s\n\n' "$MARKER"; cat "$REPORT_FILE"; } > "$body_file"
+append_footer "$body_file"
 
 repo="${GITHUB_REPOSITORY}"
 export GITHUB_TOKEN

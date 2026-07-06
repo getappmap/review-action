@@ -29,18 +29,27 @@ lib/assert.sh          tiny assertion helpers (no deps)
 mocks/
   claude  copilot      fake agent CLIs (both exec _agent.sh)
   _agent.sh            shared mock-agent logic
-  gh                   fake GitHub CLI
+  gh                   fake GitHub CLI (PR comments + appmap-js release listing)
+  npm                  fake npm (view -> canned version; install -> stub agent binary)
+  curl                 fake curl (writes a runnable stub instead of downloading)
 fixtures/
   skills-src/          minimal skills repo cloned by install-skills tests
                        (includes an unused skill to prove it is NOT linked)
   sample-project/      tiny AppMap-instrumented Node app used as a working dir
 suites/
   guard.test.sh            loop guard: skip only our own gold-traces commits
+  install-tools.test.sh    node detection, version resolution for cache keys,
+                           cache-hit skips for the appmap binary and agent CLI
   install-skills.test.sh   symlink only used skills; never clobber; copilot skips
-  run-agent.test.sh        prompt render, agent branching, token checks, report out
+  run-agent.test.sh        prompt render, agent branching, token checks, report out,
+                           usage records (claude cost, copilot premium requests)
   commit-and-push.test.sh  no-op when clean; [skip ci] bot commit; push to remote
   post-review.test.sh      summary always; PR create-vs-update; non-PR skips gh;
-                           per-matrix comment-tag markers
+                           per-matrix comment-tag markers; usage footer append
+  usage-report.test.sh     usage.mjs aggregation: cost/premium-request footers,
+                           step outputs, empty no-op
+  usage-normalize.test.sh  usage.mjs parsing of VENDORED REAL agent output
+                           (fixtures/agent-output/) — genuine CLI shapes, not mocks
 ```
 
 ## Scope
@@ -57,3 +66,6 @@ is where the action's own bugs live. It deliberately does **not** exercise:
 
 - `bash` and `git`.
 - `jq` for the `post-review` suite only; it self-skips if `jq` is absent.
+- `node` for the `run-agent`, `usage-report`, and `usage-normalize` suites (usage
+  accounting runs through `scripts/usage.mjs`); the usage suites self-skip if
+  `node` is absent.

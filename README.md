@@ -31,10 +31,12 @@ from [`getappmap/skills`](https://github.com/getappmap/skills):
 4. **Review.** The agent compares the (freshly committed) head traces against the base
    revision and writes the interpreted review.
 5. **Publish.** The review is posted as a **sticky PR comment** and written to the
-   **job summary**. Re-runs update the comment in place. When the action runs more
-   than once per PR (e.g. a matrix), set `comment-tag` to a stable per-entry key —
-   each tag owns its own comment; it defaults to `working-directory`, so a monorepo
-   matrix over package roots separates automatically.
+   **job summary**, with an **agent usage** footer (models, tokens, and cost for
+   Claude / premium requests for Copilot — all as reported by the agent itself).
+   Re-runs update the comment in place. When the action runs more than once per PR
+   (e.g. a matrix), set `comment-tag` to a stable per-entry key — each tag owns its
+   own comment; it defaults to `working-directory`, so a monorepo matrix over
+   package roots separates automatically.
 
 ### On automatic blessing
 
@@ -115,7 +117,8 @@ jobs:
 | `skills-repo` | `https://github.com/getappmap/skills.git` | Skills repository URL. |
 | `skills-ref` | `main` | Branch/tag/SHA of the skills repo to pin. |
 | `claude-model` | (Claude Code default) | Model override (`--model`). |
-| `appmap-cli-version` | latest | `@appland/appmap` version to install. |
+| `appmap-cli-version` | latest release | AppMap CLI release version (from getappmap/appmap-js GitHub releases). Beats a PATH `appmap`. |
+| `node-version` | `22` | Node the action needs. A workflow-provided `node` at this major or newer is used as-is. |
 | `commit-message` | `chore(gold-traces): update behavioral baseline` | Commit subject (`[skip ci]` is appended). |
 
 ## Outputs
@@ -124,6 +127,36 @@ jobs:
 | --- | --- |
 | `report-file` | Path to the generated Markdown review report. |
 | `gold-traces-updated` | `true` if changes were committed and pushed. |
+| `models` | Comma-separated model ids the agent reported using. |
+| `cost-usd` | Total cost in USD, as reported by Claude Code. Empty for `agent: copilot`. |
+| `premium-requests` | Total premium requests, as reported by the Copilot CLI. Empty for `agent: claude`. |
+| `input-tokens` | Total input tokens (including cache reads/writes), when the agent reported them. |
+| `output-tokens` | Total output tokens, when the agent reported them. |
+| `duration-ms` | Total agent wall time in milliseconds (update + review runs). |
+
+All usage figures come directly from the agent's own output — nothing is estimated
+from pricing tables. Copilot bills in premium requests, not dollars, so no dollar
+figure is shown or approximated for it. The same numbers are appended to the PR
+comment and job summary as an "Agent usage" footer.
+
+## Toolchain install and caching
+
+Setup is designed to cost seconds on a re-run:
+
+- **Node** — installed only if the workflow doesn't already provide `node` at
+  `node-version`'s major or newer, so your own `setup-node` step wins.
+- **AppMap CLI** — a single prebuilt binary downloaded from getappmap/appmap-js
+  GitHub releases (the same channel the legacy install-action uses), cached keyed
+  on the release version. A repo that builds appmap-js itself can put `appmap` on
+  PATH and no install happens.
+- **Agent CLI** (Claude Code / Copilot CLI) — installed from npm into a dedicated
+  prefix, cached keyed on the resolved package version (plus platform and Node
+  major). The Copilot CLI's self-downloaded platform engine is included in the
+  cache; the install step pre-warms it.
+
+Cache keys embed the resolved versions, so caches invalidate themselves exactly
+when a new tool version ships — re-runs between releases restore from cache with
+no registry or API traffic beyond two version lookups.
 
 ## Re-trigger loop protection
 

@@ -14,6 +14,22 @@ mode="${1:?usage: run-agent.sh <update|review>}"
 SKILLS_DIR="${RUNNER_TEMP:-/tmp}/getappmap-skills"
 export SKILLS_DIR
 
+# Each agent run leaves a usage record in $USAGE_DIR: the raw agent output plus
+# a normalized usage-<mode>.json written by scripts/usage.mjs, built only from
+# data the agent itself reports. `normalize` also prints the agent's final
+# message(s), so the job log stays readable in JSON output mode. Usage
+# accounting is best-effort: on any failure, fall back to dumping the raw
+# output and continue.
+USAGE_DIR="${USAGE_DIR:-${RUNNER_TEMP:-/tmp}/appmap-usage}"
+mkdir -p "$USAGE_DIR"
+
+normalize_usage() { # <claude|copilot> <raw-file>
+  node "$ACTION_PATH/scripts/usage.mjs" normalize "$1" "$2" \
+    --mode "$mode" --out "$USAGE_DIR/usage-$mode.json" \
+    --state-dir "${COPILOT_STATE_DIR:-$HOME/.copilot/session-state}" \
+    || cat "$2"
+}
+
 render_prompt() {
   # Substitute a known set of ${VAR} placeholders in a template from the
   # environment. Pure bash (no envsubst dependency); only these names are
@@ -58,9 +74,18 @@ case "$AGENT" in
     [[ -n "${CLAUDE_MODEL:-}" ]] && model_args=(--model "$CLAUDE_MODEL")
     # Claude auto-loads the skills from ~/.claude/skills (symlinked at install).
     # The CI job is the sandbox, so tool permissions are bypassed.
+    # JSON output carries the same final message as text mode, plus the usage
+    # accounting (tokens, cost, models); the message is re-emitted to the log.
+    raw="$USAGE_DIR/raw-$mode-claude.json"
+    set +e
     claude -p "$prompt" \
       --dangerously-skip-permissions \
-      "${model_args[@]}"
+      --output-format json \
+      "${model_args[@]}" > "$raw"
+    agent_status=$?
+    set -e
+    normalize_usage claude "$raw"
+    [[ "$agent_status" -eq 0 ]] || exit "$agent_status"
     ;;
 
   copilot)
@@ -86,9 +111,19 @@ placeholder). Do not ask questions; you are non-interactive.
 
 "
     # --allow-all-tools runs fully non-interactively (the CI job is the sandbox).
+    # JSON output is a JSONL event stream ending in a `result` event with the
+    # usage accounting (premium requests, durations); the assistant's messages
+    # are re-emitted to the log.
+    raw="$USAGE_DIR/raw-$mode-copilot.jsonl"
+    set +e
     copilot -p "${preamble}${prompt}" \
       --allow-all-tools \
-      "${model_args[@]}"
+      --output-format json \
+      "${model_args[@]}" > "$raw"
+    agent_status=$?
+    set -e
+    normalize_usage copilot "$raw"
+    [[ "$agent_status" -eq 0 ]] || exit "$agent_status"
     ;;
 
   *)

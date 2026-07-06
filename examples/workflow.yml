@@ -24,9 +24,10 @@ jobs:
       #   with: { python-version: '3.12' }
       # - run: pip install -e . && pip install appmap pytest
       #
-      # Node example:
+      # Node example (the action itself installs Node 22 if the workflow
+      # doesn't provide a recent one, so this is only for YOUR project):
       # - uses: actions/setup-node@v4
-      #   with: { node-version: '20' }
+      #   with: { node-version: '22' }
       # - run: npm ci
 
       - uses: getappmap/review-action@v1

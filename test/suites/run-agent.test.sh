@@ -22,7 +22,8 @@ export MOCK_AGENT_LOG="$LOG"
 export GITHUB_OUTPUT="$TMP/gh_out"
 SKILLS_DIR_EXPECTED="$RUNNER_TEMP/getappmap-skills"
 
-reset() { : > "$LOG"; : > "$GITHUB_OUTPUT"; rm -rf "$WORK/gold_traces" "$WORK/.appmap"; }
+USAGE_DIR_DEFAULT="$RUNNER_TEMP/appmap-usage"
+reset() { : > "$LOG"; : > "$GITHUB_OUTPUT"; rm -rf "$WORK/gold_traces" "$WORK/.appmap" "$USAGE_DIR_DEFAULT"; }
 agent_run() { ( cd "$WORK" && bash "$ROOT/scripts/run-agent.sh" "$1" ); }
 log_body() { cat "$LOG"; }
 
@@ -36,6 +37,11 @@ assert_contains "$body" "--dangerously-skip-permissions" "claude uses skip-permi
 assert_contains "$body" "appmap-gold-traces" "prompt names the gold-traces skill"
 assert_contains "$body" "gold_traces" "placeholder \${GOLD_TRACES_DIR} rendered"
 assert_not_contains "$body" '${GOLD_TRACES_DIR}' "no unrendered placeholder remains"
+assert_file "$USAGE_DIR_DEFAULT/usage-update.json" "claude update wrote a usage record"
+usage="$(cat "$USAGE_DIR_DEFAULT/usage-update.json")"
+assert_contains "$usage" '"agent": "claude"' "usage record names the agent"
+assert_contains "$usage" '"cost_usd": 0.42' "usage record carries the reported cost"
+assert_contains "$usage" 'claude-mock-1' "usage record carries the model id"
 
 # --- claude update: missing API key fails ---
 reset
@@ -61,6 +67,20 @@ AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces \
 body="$(log_body)"
 assert_contains "$body" "--allow-all-tools" "copilot uses allow-all-tools flag"
 assert_contains "$body" "$SKILLS_DIR_EXPECTED" "copilot prompt points at on-disk skills dir"
+assert_file "$USAGE_DIR_DEFAULT/usage-update.json" "copilot update wrote a usage record"
+usage="$(cat "$USAGE_DIR_DEFAULT/usage-update.json")"
+assert_contains "$usage" '"premium_requests": 3' "usage record carries premium requests"
+assert_contains "$usage" '"cost_usd": null' "no dollar cost is reported for copilot"
+assert_contains "$usage" 'claude-mock-copilot' "usage record carries the model id"
+
+# --- copilot review: token detail enriched from the CLI's own session log ---
+reset
+STATE="$TMP/copilot-state/mock-copilot-session"; mkdir -p "$STATE"
+echo '{"type":"assistant.message","data":{"model":"claude-mock-copilot","usage":{"inputTokens":25855,"outputTokens":4,"cacheReadTokens":10,"cacheWriteTokens":25852,"reasoningTokens":0}}}' > "$STATE/events.jsonl"
+AGENT=copilot COPILOT_TOKEN=tok BASE_REVISION=base HEAD_REVISION=head COPILOT_STATE_DIR="$TMP/copilot-state" \
+  assert_ok "copilot review runs" agent_run review
+usage="$(cat "$USAGE_DIR_DEFAULT/usage-review.json")"
+assert_contains "$usage" '"input_tokens": 25855' "token detail enriched from the session log"
 
 # --- copilot: missing token fails ---
 reset

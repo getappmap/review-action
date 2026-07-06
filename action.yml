@@ -74,8 +74,18 @@ inputs:
     description: Model override passed to Claude Code (`--model`). Empty uses the Claude Code default.
     default: ''
   appmap-cli-version:
-    description: Version of `@appland/appmap` to install (npm dist-tag or version). Empty installs latest.
+    description: |
+      Version of the AppMap CLI to install from getappmap/appmap-js GitHub releases
+      (e.g. `3.196.2`). Takes precedence over an `appmap` binary already on PATH.
+      Empty uses the PATH binary if present, else installs the latest release.
     default: ''
+  node-version:
+    description: |
+      Node.js version the action needs (the agent CLIs and the bundled usage script
+      run on Node). If the workflow already provides `node` at this major version or
+      newer it is used as-is; otherwise the action installs this version. Override
+      if the default causes trouble on your setup.
+    default: '22'
   commit-message:
     description: Commit subject used when pushing gold-trace (and related) updates. `[skip ci]` is appended automatically.
     default: 'chore(gold-traces): update behavioral baseline'
@@ -87,6 +97,24 @@ outputs:
   gold-traces-updated:
     description: 'true if the agent produced committable changes that were pushed.'
     value: ${{ steps.commit.outputs.updated }}
+  models:
+    description: Comma-separated model ids the agent reported using.
+    value: ${{ steps.usage.outputs.models }}
+  cost-usd:
+    description: Total cost in USD, as reported by Claude Code. Empty for the copilot agent.
+    value: ${{ steps.usage.outputs.cost-usd }}
+  premium-requests:
+    description: Total premium requests, as reported by the Copilot CLI. Empty for the claude agent.
+    value: ${{ steps.usage.outputs.premium-requests }}
+  input-tokens:
+    description: Total input tokens (including cache reads/writes) reported by the agent. Empty when not reported.
+    value: ${{ steps.usage.outputs.input-tokens }}
+  output-tokens:
+    description: Total output tokens reported by the agent. Empty when not reported.
+    value: ${{ steps.usage.outputs.output-tokens }}
+  duration-ms:
+    description: Total agent wall time in milliseconds, summed across the update and review runs.
+    value: ${{ steps.usage.outputs.duration-ms }}
 
 runs:
   using: composite
@@ -101,43 +129,71 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: ${{ github.action_path }}/scripts/guard.sh
 
-    - name: Set up Node.js
-      if: steps.guard.outputs.skip != 'true'
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install AppMap CLI and agent runtime
+    # ----------------------------------------------------------------------------
+    # Toolchain. Node only if the workflow doesn't already provide a recent one;
+    # the AppMap CLI as a prebuilt binary from GitHub releases; the agent CLI
+    # from npm into a dedicated prefix. Installs are cached keyed on the
+    # resolved versions, so a re-run restores in seconds and the keys
+    # self-invalidate when a new version ships.
+    # ----------------------------------------------------------------------------
+    - id: node
       if: steps.guard.outputs.skip != 'true'
       shell: bash
-      run: |
-        set -euo pipefail
-        appmap_pkg="@appland/appmap"
-        if [[ -n "${{ inputs.appmap-cli-version }}" ]]; then
-          appmap_pkg="@appland/appmap@${{ inputs.appmap-cli-version }}"
-        fi
-        case "${{ inputs.agent }}" in
-          claude)  agent_pkg="@anthropic-ai/claude-code" ;;
-          copilot) agent_pkg="@github/copilot" ;;
-          *) echo "unknown agent: ${{ inputs.agent }} (expected 'claude' or 'copilot')" >&2; exit 2 ;;
-        esac
-        # Use a pre-provided appmap CLI if one is already on PATH (e.g. a repo
-        # that builds @appland/appmap itself and exposes it), and skip installing
-        # the published package. Otherwise install it. --omit=optional skips
-        # optional native deps (e.g. fsevents, macOS-only via chokidar, whose
-        # node-gyp build fails on Linux runners).
-        if command -v appmap >/dev/null 2>&1; then
-          echo "Using pre-installed appmap: $(command -v appmap) ($(appmap --version 2>/dev/null || echo '?'))"
-          npm install -g --omit=optional "$agent_pkg"
-        else
-          npm install -g --omit=optional "$appmap_pkg" "$agent_pkg"
-        fi
-        echo "appmap: $(appmap --version || true)"
-        if [[ "${{ inputs.agent }}" == "claude" ]]; then
-          echo "claude: $(claude --version || true)"
-        else
-          echo "copilot: $(copilot --version || true)"
-        fi
+      env:
+        NODE_MIN: ${{ inputs.node-version }}
+      run: ${{ github.action_path }}/scripts/detect-node.sh
+
+    - name: Set up Node.js
+      if: steps.guard.outputs.skip != 'true' && steps.node.outputs.need-node == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - id: versions
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        APPMAP_CLI_VERSION: ${{ inputs.appmap-cli-version }}
+        AGENT: ${{ inputs.agent }}
+      run: ${{ github.action_path }}/scripts/resolve-versions.sh
+
+    - name: Cache AppMap CLI
+      if: steps.guard.outputs.skip != 'true' && steps.versions.outputs.appmap-preinstalled != 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/appmap-bin
+        key: appmap-${{ steps.versions.outputs.appmap-version }}-${{ steps.versions.outputs.platform }}
+
+    - name: Install AppMap CLI
+      if: steps.guard.outputs.skip != 'true' && steps.versions.outputs.appmap-preinstalled != 'true'
+      shell: bash
+      env:
+        APPMAP_URL: ${{ steps.versions.outputs.appmap-url }}
+        DEST: ${{ runner.temp }}/appmap-bin
+      run: ${{ github.action_path }}/scripts/install-appmap.sh
+
+    - name: Cache agent runtime
+      if: steps.guard.outputs.skip != 'true'
+      uses: actions/cache@v4
+      with:
+        # The extra paths hold the Copilot CLI's self-downloaded platform
+        # engine (Linux and macOS locations); harmless when absent.
+        path: |
+          ${{ runner.temp }}/agent-tools
+          ~/.cache/copilot
+          ~/Library/Caches/copilot
+        key: agent-${{ inputs.agent }}-${{ steps.versions.outputs.agent-version }}-${{ steps.versions.outputs.platform }}-node${{ steps.node.outputs.node-major }}
+
+    - name: Install agent runtime
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+        AGENT_PACKAGE: ${{ steps.versions.outputs.agent-package }}
+        AGENT_VERSION: ${{ steps.versions.outputs.agent-version }}
+        PREFIX: ${{ runner.temp }}/agent-tools
+      run: ${{ github.action_path }}/scripts/install-agent.sh
 
     - name: Install skills
       if: steps.guard.outputs.skip != 'true'
@@ -161,6 +217,7 @@ runs:
         CLAUDE_MODEL: ${{ inputs.claude-model }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
+        USAGE_DIR: ${{ runner.temp }}/appmap-usage
       run: ${{ github.action_path }}/scripts/run-agent.sh update
 
     # Commit everything the agent changed (baselines, config, added labels/tests)
@@ -190,7 +247,18 @@ runs:
         CLAUDE_MODEL: ${{ inputs.claude-model }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
+        USAGE_DIR: ${{ runner.temp }}/appmap-usage
       run: ${{ github.action_path }}/scripts/run-agent.sh review
+
+    # Aggregate what the agent reported about its own usage (models, tokens,
+    # cost or premium requests) into step outputs and a report footer.
+    - name: Report agent usage
+      id: usage
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        USAGE_DIR: ${{ runner.temp }}/appmap-usage
+      run: node ${{ github.action_path }}/scripts/usage.mjs report
 
     - name: Publish review
       if: steps.guard.outputs.skip != 'true' && steps.review.outputs.report-file != ''
@@ -200,4 +268,5 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPORT_FILE: ${{ steps.review.outputs.report-file }}
         COMMENT_TAG: ${{ inputs.comment-tag || inputs.working-directory }}
+        USAGE_FOOTER: ${{ steps.usage.outputs.footer-file }}
       run: ${{ github.action_path }}/scripts/post-review.sh

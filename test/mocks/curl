@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Mock `curl` for the install-tools suite: logs the invocation and writes a
+# runnable stub to the -o target instead of downloading.
+set -euo pipefail
+
+if [[ -n "${MOCK_CURL_LOG:-}" ]]; then
+  printf '%s\n' "$*" >> "$MOCK_CURL_LOG"
+fi
+
+out=""
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  if [[ "${args[$i]}" == "-o" ]]; then
+    out="${args[$((i + 1))]}"
+  fi
+done
+if [[ -n "$out" ]]; then
+  printf '#!/bin/sh\necho mock appmap 9.9.9\n' > "$out"
+fi
