@@ -41,13 +41,16 @@ elif [[ "${APPMAP_IGNORE_PREINSTALLED:-}" != "true" ]] && command -v appmap >/de
   appmap_preinstalled=true
   echo "Using pre-installed appmap: $(command -v appmap) ($(appmap --version 2>/dev/null || echo '?'))"
 else
-  # Newest release named @appland/appmap-v*. The monorepo interleaves other
+  # Newest release tagged @appland/appmap-v*. Match on tag_name, not the
+  # display name — newer releases are named "appmap-vX.Y.Z" while the tag
+  # remains "@appland/appmap-vX.Y.Z" (matching on name silently pins you to
+  # the last release under the old naming). The monorepo interleaves other
   # packages' releases, so page until found.
   for page in 1 2 3 4 5 6 7 8 9 10; do
-    name="$(gh api "repos/getappmap/appmap-js/releases?per_page=100&page=$page" \
-      | jq -r '[.[] | select(.name | startswith("@appland/appmap-v"))][0].name // empty')"
-    if [[ -n "$name" ]]; then
-      appmap_version="${name#@appland/appmap-v}"
+    tag="$(gh api "repos/getappmap/appmap-js/releases?per_page=100&page=$page" \
+      | jq -r '[.[] | select(.tag_name | startswith("@appland/appmap-v"))][0].tag_name // empty')"
+    if [[ -n "$tag" ]]; then
+      appmap_version="${tag#@appland/appmap-v}"
       break
     fi
   done

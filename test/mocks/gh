@@ -9,12 +9,14 @@ set -euo pipefail
 [[ -n "${MOCK_GH_LOG:-}" ]] && printf '%s\n' "$*" >> "$MOCK_GH_LOG"
 
 # appmap-js release listing (resolve-versions.sh): canned page with a
-# non-appmap release first, then the appmap release with all platform assets.
+# non-appmap release first, then the appmap release. Mirrors the real repo's
+# naming: newer releases are NAMED "appmap-vX.Y.Z" but TAGGED
+# "@appland/appmap-vX.Y.Z" — resolution must match on tag_name.
 for a in "$@"; do
   if [[ "$a" == repos/getappmap/appmap-js/releases* ]]; then
     cat <<'EOF'
-[{"name":"@appland/scanner-v1.0.0","assets":[]},
- {"name":"@appland/appmap-v9.9.9","tag_name":"@appland/appmap-v9.9.9",
+[{"name":"@appland/scanner-v1.0.0","tag_name":"@appland/scanner-v1.0.0","assets":[]},
+ {"name":"appmap-v9.9.9","tag_name":"@appland/appmap-v9.9.9",
   "assets":[{"name":"appmap-linux-x64"},{"name":"appmap-linux-arm64"},
             {"name":"appmap-macos-x64"},{"name":"appmap-macos-arm64"}]}]
 EOF
