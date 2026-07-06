@@ -2,6 +2,9 @@
 # The critical part is setting up a RUNNABLE TEST ENVIRONMENT before the action:
 # recording gold traces executes the project's tests under the AppMap recorder.
 name: AppMap Behavioral Review
+# Reviews every push to every PR. A run costs a few dollars of agent time —
+# see "Controlling when reviews run" in the README for label-triggered,
+# label-subscription, and ready-for-review variants.
 on:
   pull_request:
 

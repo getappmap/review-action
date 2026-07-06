@@ -100,6 +100,90 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
+## Controlling when reviews run
+
+A review is real agent work — typically a few dollars and 5–20 minutes per run —
+so most projects won't want one on every push. The quick-start trigger above
+(`on: pull_request`) reviews every push to every PR; these three patterns put a
+human or a milestone in the loop instead. All of them are still `pull_request`
+events, so the action's revision defaults, checkout, and sticky comment work
+unchanged (the comment-trigger variant at the end is the exception).
+
+### Label trigger — review on demand
+
+```yaml
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  review:
+    if: github.event.label.name == 'appmap-review'
+    ...
+```
+
+Adding the `appmap-review` label runs exactly one review. To review again after
+new pushes, remove and re-add the label ("Re-run jobs" in the Actions UI
+re-reviews the same revision). Labels are permission-gated for free — only
+people with triage access can add one.
+
+**Choose this when reviews should be deliberate**: a reviewer decides which PRs,
+and which moments in their life, are worth the spend. This is the tightest cost
+control — one label add, one run.
+
+### Label subscription — opt a PR in, then review every push
+
+```yaml
+on:
+  pull_request:
+    types: [labeled, synchronize]
+
+concurrency:
+  group: appmap-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: contains(github.event.pull_request.labels.*.name, 'appmap-review')
+    ...
+```
+
+The label becomes a per-PR subscription: once opted in, every subsequent push
+refreshes the review; unlabeled PRs cost nothing. The `concurrency` group keeps
+a push storm from stacking paid runs — each push supersedes the one in flight.
+
+**Choose this when a minority of PRs warrant continuous behavioral review** —
+the risky migration, the auth change — and the rest don't. You pay per push,
+but only on the PRs you've flagged.
+
+### Ready-for-review trigger — one automatic review at the natural gate
+
+```yaml
+on:
+  pull_request:
+    types: [ready_for_review]  # add `labeled` too for a manual escape hatch
+```
+
+Runs exactly once, when the author flips the PR from draft to ready. Drafts
+cost nothing, and nobody has to remember a label.
+
+**Choose this when every PR should get a review, but exactly one, at the moment
+the author declares it reviewable.** Combine with the label trigger
+(`types: [ready_for_review, labeled]`) so a reviewer can still request a fresh
+run after changes.
+
+### A note on comment triggers (`/appmap-review`)
+
+ChatOps reads nicely, but `issue_comment` workflows come with real plumbing:
+they run from the workflow file on the **default branch** (nothing works until
+it's merged), the event carries **no head/base refs** (you must resolve the PR
+via the API and pass explicit `base-revision`/`head-revision` inputs), and you
+must gate on the commenter's permissions yourself
+(`github.event.comment.author_association`). Reach for it only if your team
+already runs slash-command automation and the label workflow proves too coarse
+— the label trigger delivers the same "review on demand" semantics with none of
+the plumbing.
+
 ## Inputs
 
 | Input | Default | Description |
