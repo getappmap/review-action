@@ -82,6 +82,8 @@ case "$AGENT" in
     export ANTHROPIC_API_KEY
     model_args=()
     [[ -n "${CLAUDE_MODEL:-}" ]] && model_args=(--model "$CLAUDE_MODEL")
+    # The "mini" (small/fast) model Claude Code uses for lightweight background work.
+    [[ -n "${CLAUDE_MINI_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CLAUDE_MINI_MODEL"
     # Claude auto-loads the skills from ~/.claude/skills (symlinked at install).
     # The CI job is the sandbox, so tool permissions are bypassed.
     # stream-json emits every tool call and message as it happens (live

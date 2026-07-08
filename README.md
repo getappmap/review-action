@@ -200,7 +200,8 @@ the plumbing.
 | `comment-tag` | `working-directory` | Per-entry key (e.g. `matrix.name`) giving each matrix run its own sticky PR comment. `.` means untagged. |
 | `skills-repo` | `https://github.com/getappmap/skills.git` | Skills repository URL. |
 | `skills-ref` | `main` | Branch/tag/SHA of the skills repo to pin. |
-| `claude-model` | (Claude Code default) | Model override (`--model`). |
+| `claude-model` | (Claude Code default: Opus) | Primary Claude Code model (`--model`). Set to run cheaper, e.g. `claude-sonnet-4-5`. |
+| `claude-mini-model` | (Claude Code default: Haiku) | Small/fast model for background work (`ANTHROPIC_SMALL_FAST_MODEL`). |
 | `appmap-cli-version` | latest release | AppMap CLI release version (from getappmap/appmap-js GitHub releases). Beats a PATH `appmap`. |
 | `node-version` | `22` | Node the action needs. A workflow-provided `node` at this major or newer is used as-is. |
 | `commit-message` | `chore(gold-traces): update behavioral baseline` | Commit subject (`[skip ci]` is appended). |

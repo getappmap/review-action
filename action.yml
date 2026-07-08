@@ -71,7 +71,14 @@ inputs:
     description: Branch, tag, or SHA of the skills repository to pin.
     default: main
   claude-model:
-    description: Model override passed to Claude Code (`--model`). Empty uses the Claude Code default.
+    description: |
+      Primary model for Claude Code (`--model`). Empty uses the Claude Code default
+      (Opus). Set it to run cheaper, e.g. `claude-sonnet-4-5` instead of Opus 4.8.
+    default: ''
+  claude-mini-model:
+    description: |
+      The small/fast ("mini") model Claude Code uses for lightweight background work,
+      via `ANTHROPIC_SMALL_FAST_MODEL`. Empty uses the Claude Code default (Haiku).
     default: ''
   appmap-cli-version:
     description: |
@@ -215,6 +222,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GOLD_TRACES_DIR: ${{ inputs.gold-traces-dir }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
+        CLAUDE_MINI_MODEL: ${{ inputs.claude-mini-model }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
         USAGE_DIR: ${{ runner.temp }}/appmap-usage
@@ -245,6 +253,7 @@ runs:
         BASE_REVISION: ${{ inputs.base-revision }}
         HEAD_REVISION: ${{ inputs.head-revision }}
         CLAUDE_MODEL: ${{ inputs.claude-model }}
+        CLAUDE_MINI_MODEL: ${{ inputs.claude-mini-model }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
         USAGE_DIR: ${{ runner.temp }}/appmap-usage
