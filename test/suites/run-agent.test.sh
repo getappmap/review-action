@@ -60,6 +60,25 @@ reset
 AGENT=claude ANTHROPIC_API_KEY=key BASE_REVISION=base HEAD_REVISION=head MOCK_NO_REPORT=1 \
   assert_fail "review fails when no report is written" agent_run review
 
+# --- agent-agnostic model / mini-model ---
+reset
+AGENT=claude ANTHROPIC_API_KEY=key GOLD_TRACES_DIR=gold_traces MODEL=claude-sonnet-4-5 MINI_MODEL=claude-haiku-x \
+  assert_ok "claude update with model + mini-model" agent_run update
+body="$(log_body)"
+assert_contains "$body" "--model claude-sonnet-4-5" "model passed to claude as --model"
+assert_contains "$body" "small_fast_model=claude-haiku-x" "mini-model exported as ANTHROPIC_SMALL_FAST_MODEL"
+
+reset
+AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces MODEL=gpt-x \
+  assert_ok "copilot update with model" agent_run update
+assert_contains "$(log_body)" "--model gpt-x" "model passed to copilot as --model"
+
+reset
+AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces MINI_MODEL=claude-haiku-x \
+  assert_ok "copilot update with mini-model (ignored)" agent_run update
+assert_contains "$LAST_OUTPUT" "not supported by the copilot agent" "copilot warns on mini-model"
+assert_not_contains "$(log_body)" "small_fast_model=claude-haiku-x" "copilot does not export a mini-model"
+
 # --- copilot update: correct flag + skills-path preamble ---
 reset
 AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces \

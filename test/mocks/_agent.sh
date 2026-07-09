@@ -31,6 +31,7 @@ agent_name="${MOCK_AGENT_NAME:-$(basename "$0")}"
 if [[ -n "${MOCK_AGENT_LOG:-}" ]]; then
   { printf 'agent=%s\n' "$agent_name"
     printf 'args=%s\n' "${args[*]}"
+    printf 'small_fast_model=%s\n' "${ANTHROPIC_SMALL_FAST_MODEL:-}"
     printf 'prompt<<END\n%s\nEND\n' "$prompt"
   } >> "$MOCK_AGENT_LOG"
 fi

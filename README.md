@@ -191,7 +191,8 @@ the plumbing.
 | `agent` | `claude` | Agent runtime: `claude` (Claude Code) or `copilot` (GitHub Copilot CLI). |
 | `anthropic-api-key` | — | API key for Claude Code. Required when `agent: claude`. |
 | `copilot-token` | `github-token` | Copilot-enabled GitHub token. Required when `agent: copilot`. |
-| `copilot-model` | (Copilot default) | Model override for the Copilot CLI (`--model`). |
+| `model` | (agent default) | Primary model for the selected agent (`--model` for both `claude` and `copilot`). Set to run cheaper, e.g. `claude-sonnet-4-5`. |
+| `mini-model` | (agent default) | Small/fast model for background work. `claude` only (`ANTHROPIC_SMALL_FAST_MODEL`); `copilot` warns and ignores it. |
 | `github-token` | `${{ github.token }}` | Pushes baselines and posts the PR comment. |
 | `base-revision` | `${{ github.base_ref }}` | Review baseline (any git ref). |
 | `head-revision` | `${{ github.sha }}` | Review head (any git ref). |
@@ -200,8 +201,6 @@ the plumbing.
 | `comment-tag` | `working-directory` | Per-entry key (e.g. `matrix.name`) giving each matrix run its own sticky PR comment. `.` means untagged. |
 | `skills-repo` | `https://github.com/getappmap/skills.git` | Skills repository URL. |
 | `skills-ref` | `main` | Branch/tag/SHA of the skills repo to pin. |
-| `claude-model` | (Claude Code default: Opus) | Primary Claude Code model (`--model`). Set to run cheaper, e.g. `claude-sonnet-4-5`. |
-| `claude-mini-model` | (Claude Code default: Haiku) | Small/fast model for background work (`ANTHROPIC_SMALL_FAST_MODEL`). |
 | `appmap-cli-version` | latest release | AppMap CLI release version (from getappmap/appmap-js GitHub releases). Beats a PATH `appmap`. |
 | `node-version` | `22` | Node the action needs. A workflow-provided `node` at this major or newer is used as-is. |
 | `commit-message` | `chore(gold-traces): update behavioral baseline` | Commit subject (`[skip ci]` is appended). |

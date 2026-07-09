@@ -28,9 +28,6 @@ inputs:
       token) via a secret. Falls back to `github-token` if unset.
     required: false
     default: ''
-  copilot-model:
-    description: Model override passed to the Copilot CLI (`--model`). Empty uses its default.
-    default: ''
   github-token:
     description: |
       Token used to push gold-trace updates to the PR branch and to post the review
@@ -70,15 +67,17 @@ inputs:
   skills-ref:
     description: Branch, tag, or SHA of the skills repository to pin.
     default: main
-  claude-model:
+  model:
     description: |
-      Primary model for Claude Code (`--model`). Empty uses the Claude Code default
-      (Opus). Set it to run cheaper, e.g. `claude-sonnet-4-5` instead of Opus 4.8.
+      Primary model for the selected agent (passed as `--model` to both `claude` and
+      `copilot`). Empty uses the agent's default. Set it to run cheaper, e.g.
+      `claude-sonnet-4-5` instead of Opus 4.8.
     default: ''
-  claude-mini-model:
+  mini-model:
     description: |
-      The small/fast ("mini") model Claude Code uses for lightweight background work,
-      via `ANTHROPIC_SMALL_FAST_MODEL`. Empty uses the Claude Code default (Haiku).
+      The small/fast ("mini") model used for lightweight background work. Supported by
+      the `claude` agent (via `ANTHROPIC_SMALL_FAST_MODEL`); the `copilot` agent has no
+      such concept and will warn and ignore it. Empty uses the agent's default.
     default: ''
   appmap-cli-version:
     description: |
@@ -221,9 +220,8 @@ runs:
         COPILOT_TOKEN: ${{ inputs.copilot-token }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         GOLD_TRACES_DIR: ${{ inputs.gold-traces-dir }}
-        CLAUDE_MODEL: ${{ inputs.claude-model }}
-        CLAUDE_MINI_MODEL: ${{ inputs.claude-mini-model }}
-        COPILOT_MODEL: ${{ inputs.copilot-model }}
+        MODEL: ${{ inputs.model }}
+        MINI_MODEL: ${{ inputs.mini-model }}
         ACTION_PATH: ${{ github.action_path }}
         USAGE_DIR: ${{ runner.temp }}/appmap-usage
       run: ${{ github.action_path }}/scripts/run-agent.sh update
@@ -252,9 +250,8 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         BASE_REVISION: ${{ inputs.base-revision }}
         HEAD_REVISION: ${{ inputs.head-revision }}
-        CLAUDE_MODEL: ${{ inputs.claude-model }}
-        CLAUDE_MINI_MODEL: ${{ inputs.claude-mini-model }}
-        COPILOT_MODEL: ${{ inputs.copilot-model }}
+        MODEL: ${{ inputs.model }}
+        MINI_MODEL: ${{ inputs.mini-model }}
         ACTION_PATH: ${{ github.action_path }}
         USAGE_DIR: ${{ runner.temp }}/appmap-usage
       run: ${{ github.action_path }}/scripts/run-agent.sh review

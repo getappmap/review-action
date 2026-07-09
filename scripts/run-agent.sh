@@ -75,15 +75,23 @@ case "$mode" in
     ;;
 esac
 
+# ---- agent-agnostic model settings -------------------------------------------
+# `model` and `mini-model` are agent-agnostic. `model` maps to --model for every
+# agent; `mini-model` is only meaningful for agents with a small/fast model (a
+# warning is emitted when an agent can't honor it).
+warn() { echo "::warning::$*"; echo "warning: $*" >&2; }
+model="${MODEL:-}"
+mini_model="${MINI_MODEL:-}"
+
 # ---- run the selected agent --------------------------------------------------
 case "$AGENT" in
   claude)
     : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required for agent 'claude'}"
     export ANTHROPIC_API_KEY
     model_args=()
-    [[ -n "${CLAUDE_MODEL:-}" ]] && model_args=(--model "$CLAUDE_MODEL")
+    [[ -n "$model" ]] && model_args=(--model "$model")
     # The "mini" (small/fast) model Claude Code uses for lightweight background work.
-    [[ -n "${CLAUDE_MINI_MODEL:-}" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$CLAUDE_MINI_MODEL"
+    [[ -n "$mini_model" ]] && export ANTHROPIC_SMALL_FAST_MODEL="$mini_model"
     # Claude auto-loads the skills from ~/.claude/skills (symlinked at install).
     # The CI job is the sandbox, so tool permissions are bypassed.
     # stream-json emits every tool call and message as it happens (live
@@ -112,7 +120,9 @@ case "$AGENT" in
     fi
     export GH_TOKEN="$token" GITHUB_TOKEN="$token"
     model_args=()
-    [[ -n "${COPILOT_MODEL:-}" ]] && model_args=(--model "$COPILOT_MODEL")
+    [[ -n "$model" ]] && model_args=(--model "$model")
+    # Copilot has no separate small/fast ("mini") model concept.
+    [[ -n "$mini_model" ]] && warn "'mini-model' is not supported by the copilot agent; ignoring '$mini_model'."
 
     # Copilot does not load ~/.claude/skills, so tell it where the skills live on
     # disk and to follow them. The skills reference each other and ship an engine
