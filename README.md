@@ -18,7 +18,7 @@ from [`getappmap/skills`](https://github.com/getappmap/skills):
 
 1. **Install skills.** Clones `getappmap/skills` into a working directory. For the
    `claude` agent it **symlinks only the skills this action uses**
-   (`appmap-gold-traces`, `appmap-review`, and their `appmap-label`/`appmap-record`
+   (`appmap-gold-traces`, `appmap-review`, and their `appmap-config`/`appmap-record`
    dependencies) into `~/.claude/skills` — so it never clobbers other skills already
    installed there. For the `copilot` agent the skills are read directly from the
    working directory (Copilot doesn't load `~/.claude/skills`).

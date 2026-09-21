@@ -1,3 +1,3 @@
-# appmap-label (test fixture)
+# appmap-config (test fixture)
 
 Minimal skill stub for the review-action test harness.
