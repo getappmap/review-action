@@ -83,6 +83,18 @@ warn() { echo "::warning::$*"; echo "warning: $*" >&2; }
 model="${MODEL:-}"
 mini_model="${MINI_MODEL:-}"
 
+# Deprecated per-agent aliases from v1.1.0 (`claude-model`, `copilot-model`).
+# `model` wins; otherwise the alias for the selected agent is used.
+case "$AGENT" in
+  claude)  legacy_input=claude-model;  legacy_model="${CLAUDE_MODEL:-}" ;;
+  copilot) legacy_input=copilot-model; legacy_model="${COPILOT_MODEL:-}" ;;
+  *)       legacy_input="";            legacy_model="" ;;
+esac
+if [[ -n "$legacy_model" ]]; then
+  warn "'$legacy_input' is deprecated; use 'model' instead."
+  if [[ -z "$model" ]]; then model="$legacy_model"; fi
+fi
+
 # ---- run the selected agent --------------------------------------------------
 case "$AGENT" in
   claude)
