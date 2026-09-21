@@ -193,6 +193,7 @@ the plumbing.
 | `copilot-token` | `github-token` | Copilot-enabled GitHub token. Required when `agent: copilot`. |
 | `model` | (agent default) | Primary model for the selected agent (`--model` for both `claude` and `copilot`). Set to run cheaper, e.g. `claude-sonnet-4-5`. |
 | `mini-model` | (agent default) | Small/fast model for background work. `claude` only (`ANTHROPIC_SMALL_FAST_MODEL`); `copilot` warns and ignores it. |
+| `claude-model`, `copilot-model` | — | Deprecated aliases for `model`, kept so v1.1.0 workflows keep working. Each applies only to its own agent, and `model` wins if both are set. |
 | `github-token` | `${{ github.token }}` | Pushes baselines and posts the PR comment. |
 | `base-revision` | `${{ github.base_ref }}` | Review baseline (any git ref). |
 | `head-revision` | `${{ github.sha }}` | Review head (any git ref). |

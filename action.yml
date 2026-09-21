@@ -79,6 +79,14 @@ inputs:
       the `claude` agent (via `ANTHROPIC_SMALL_FAST_MODEL`); the `copilot` agent has no
       such concept and will warn and ignore it. Empty uses the agent's default.
     default: ''
+  claude-model:
+    description: Deprecated alias for `model` when `agent` is `claude`. `model` wins if both are set.
+    deprecationMessage: Use `model` instead.
+    default: ''
+  copilot-model:
+    description: Deprecated alias for `model` when `agent` is `copilot`. `model` wins if both are set.
+    deprecationMessage: Use `model` instead.
+    default: ''
   appmap-cli-version:
     description: |
       Version of the AppMap CLI to install from getappmap/appmap-js GitHub releases
@@ -222,6 +230,8 @@ runs:
         GOLD_TRACES_DIR: ${{ inputs.gold-traces-dir }}
         MODEL: ${{ inputs.model }}
         MINI_MODEL: ${{ inputs.mini-model }}
+        CLAUDE_MODEL: ${{ inputs.claude-model }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
         USAGE_DIR: ${{ runner.temp }}/appmap-usage
       run: ${{ github.action_path }}/scripts/run-agent.sh update
@@ -252,6 +262,8 @@ runs:
         HEAD_REVISION: ${{ inputs.head-revision }}
         MODEL: ${{ inputs.model }}
         MINI_MODEL: ${{ inputs.mini-model }}
+        CLAUDE_MODEL: ${{ inputs.claude-model }}
+        COPILOT_MODEL: ${{ inputs.copilot-model }}
         ACTION_PATH: ${{ github.action_path }}
         USAGE_DIR: ${{ runner.temp }}/appmap-usage
       run: ${{ github.action_path }}/scripts/run-agent.sh review

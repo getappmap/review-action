@@ -79,6 +79,29 @@ AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces MINI_MODEL=claude-ha
 assert_contains "$LAST_OUTPUT" "not supported by the copilot agent" "copilot warns on mini-model"
 assert_not_contains "$(log_body)" "small_fast_model=claude-haiku-x" "copilot does not export a mini-model"
 
+# --- deprecated per-agent aliases (claude-model / copilot-model) ---
+reset
+AGENT=claude ANTHROPIC_API_KEY=key GOLD_TRACES_DIR=gold_traces CLAUDE_MODEL=claude-legacy \
+  assert_ok "claude update with deprecated claude-model" agent_run update
+assert_contains "$(log_body)" "--model claude-legacy" "claude-model falls back to --model"
+assert_contains "$LAST_OUTPUT" "'claude-model' is deprecated" "claude-model warns as deprecated"
+
+reset
+AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces COPILOT_MODEL=gpt-legacy \
+  assert_ok "copilot update with deprecated copilot-model" agent_run update
+assert_contains "$(log_body)" "--model gpt-legacy" "copilot-model falls back to --model"
+
+reset
+AGENT=claude ANTHROPIC_API_KEY=key GOLD_TRACES_DIR=gold_traces MODEL=claude-new CLAUDE_MODEL=claude-legacy \
+  assert_ok "claude update with model and claude-model" agent_run update
+assert_contains "$(log_body)" "--model claude-new" "model wins over claude-model"
+assert_not_contains "$(log_body)" "claude-legacy" "deprecated alias is not passed when model is set"
+
+reset
+AGENT=claude ANTHROPIC_API_KEY=key GOLD_TRACES_DIR=gold_traces COPILOT_MODEL=gpt-legacy \
+  assert_ok "claude update ignores copilot-model" agent_run update
+assert_not_contains "$(log_body)" "gpt-legacy" "the other agent's alias is ignored"
+
 # --- copilot update: correct flag + skills-path preamble ---
 reset
 AGENT=copilot COPILOT_TOKEN=tok GOLD_TRACES_DIR=gold_traces \
