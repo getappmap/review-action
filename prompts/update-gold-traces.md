@@ -32,7 +32,7 @@ Do this:
    `.appmap/` gitignored, baselines marked `binary` in `.gitattributes`.
 
 4. You **may** also improve interpretability while you are here: apply AppMap
-   **labels** (via appmap-label) to security-relevant functions the traces exercise,
+   **labels** (via appmap-config) to security-relevant functions the traces exercise,
    and add a gold test where a release-critical path has no coverage. The CI action
    will commit **everything you change** — baselines, spec, labels, and new tests — so
    nothing you do is lost.

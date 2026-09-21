@@ -129,7 +129,7 @@ case "$AGENT" in
     # under each skill's assets/ — all reachable under $SKILLS_DIR.
     preamble="You have AppMap skills available on disk under ${SKILLS_DIR}. Wherever the
 task below says to \"use the <name> skill\", read ${SKILLS_DIR}/<name>/SKILL.md and
-follow it, including any skills it references (e.g. appmap-label, appmap-record) and
+follow it, including any skills it references (e.g. appmap-config, appmap-record) and
 its engine at ${SKILLS_DIR}/<name>/assets/ (substitute that path for any \"<skill>\"
 placeholder). Do not ask questions; you are non-interactive.
 

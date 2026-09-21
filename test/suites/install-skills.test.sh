@@ -32,7 +32,7 @@ run_install() { # agent home runner-temp
 # --- claude: links used skills, skips the unused one ---
 H1="$TMP/home1"; RT1="$TMP/rt1"; mkdir -p "$H1" "$RT1"
 assert_ok "claude install runs" run_install claude "$H1" "$RT1"
-for s in appmap-gold-traces appmap-review appmap-label appmap-record; do
+for s in appmap-gold-traces appmap-review appmap-config appmap-record; do
   assert_symlink "$H1/.claude/skills/$s" "linked $s"
 done
 assert_no_file "$H1/.claude/skills/appmap-unused" "unused skill not linked"
