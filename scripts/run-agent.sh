@@ -2,13 +2,13 @@
 # Run the selected agent (Claude Code or GitHub Copilot CLI) headless with one of
 # the action's prompt templates.
 #
-# Usage: run-agent.sh <update|review>
+# Usage: run-agent.sh <update|review|movie>
 set -euo pipefail
 
 : "${ACTION_PATH:?ACTION_PATH is required}"
 
 AGENT="${AGENT:-claude}"
-mode="${1:?usage: run-agent.sh <update|review>}"
+mode="${1:?usage: run-agent.sh <update|review|movie>}"
 
 # Directory the skills were cloned into (must match scripts/install-skills.sh).
 SKILLS_DIR="${RUNNER_TEMP:-/tmp}/getappmap-skills"
@@ -47,7 +47,7 @@ render_prompt() {
   # untouched.
   local content var val
   content="$(cat "$1")"
-  for var in GOLD_TRACES_DIR BASE_REVISION HEAD_REVISION REPORT_FILE SKILLS_DIR; do
+  for var in GOLD_TRACES_DIR BASE_REVISION HEAD_REVISION REPORT_FILE SKILLS_DIR PR_NUMBER MOVIE_DIR SHOWCASE_STUDIO APP_NOTES; do
     val="${!var:-}"
     content="${content//\$\{$var\}/$val}"
   done
@@ -68,6 +68,14 @@ case "$mode" in
     mkdir -p "$(dirname "$REPORT_FILE")"
     export BASE_REVISION HEAD_REVISION REPORT_FILE
     prompt="$(render_prompt "$ACTION_PATH/prompts/review.md")"
+    ;;
+  movie)
+    : "${BASE_REVISION:?BASE_REVISION is required}"
+    : "${HEAD_REVISION:?HEAD_REVISION is required}"
+    MOVIE_DIR="${MOVIE_DIR:-$(pwd)/.appmap/movie}"
+    mkdir -p "$MOVIE_DIR"
+    export BASE_REVISION HEAD_REVISION MOVIE_DIR PR_NUMBER SHOWCASE_STUDIO APP_NOTES
+    prompt="$(render_prompt "$ACTION_PATH/prompts/movie.md")"
     ;;
   *)
     echo "unknown mode: $mode" >&2
@@ -176,4 +184,11 @@ if [[ "$mode" == "review" ]]; then
     exit 1
   fi
   echo "report-file=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+fi
+if [[ "$mode" == "movie" ]]; then
+  if [[ ! -s "$MOVIE_DIR/movie.json" ]]; then
+    echo "error: the movie agent did not write $MOVIE_DIR/movie.json" >&2
+    exit 1
+  fi
+  echo "movie-dir=$MOVIE_DIR" >> "$GITHUB_OUTPUT"
 fi
