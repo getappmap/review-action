@@ -54,7 +54,7 @@ upload() { # <local file> <key>
 }
 
 upload "$MOVIE_DIR/movie.mp4"   movie.mp4
-upload "$MOVIE_DIR/movie-phone.mp4" movie-phone.mp4
+upload "$MOVIE_DIR/movie-wide.mp4" movie-wide.mp4
 upload "$MOVIE_DIR/podcast.mp4" podcast.mp4
 upload "$MOVIE_DIR/podcast.mp3" podcast.mp3
 upload "$MOVIE_DIR/poster.png"  poster.png
@@ -63,7 +63,7 @@ upload "$MOVIE_DIR/poster.png"  poster.png
 listen="${url[podcast.mp3]:-${url[podcast.mp4]:-}}"
 body="$(mktemp)"
 node "$SKILLS_DIR/appmap-pr-movie/assets/comment.mjs" "$MOVIE_DIR" \
-  "${url[movie.mp4]:-}" "$listen" "${url[poster.png]:-}" "${url[movie-phone.mp4]:-}" > "$body"
+  "${url[movie.mp4]:-}" "$listen" "${url[poster.png]:-}" "${url[movie-wide.mp4]:-}" > "$body"
 
 [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] && cat "$body" >> "$GITHUB_STEP_SUMMARY"
 
