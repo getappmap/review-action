@@ -31,14 +31,17 @@ if [[ -s "$MOVIE_DIR/podcast.m4a" ]]; then
   "$SKILLS_DIR/appmap-pr-movie/assets/podcast.sh" "$MOVIE_DIR"
 fi
 
+# A random folder per run, so a link cannot be guessed from the PR number.
+secret="$(openssl rand -hex 16)"
+
 declare -A url=()
 upload() { # <local file> <key>
   local file="$1" name="pr-${pr}-${short}-$2"
   [[ -s "$file" ]] || return 0
   if [[ -n "${MOVIE_BUCKET:-}" ]]; then
     : "${MOVIE_BASE_URL:?MOVIE_BASE_URL is required with MOVIE_BUCKET}"
-    aws s3 cp --only-show-errors "$file" "s3://${MOVIE_BUCKET}/${repo}/${name}"
-    url[$2]="${MOVIE_BASE_URL%/}/${repo}/${name}"
+    aws s3 cp --only-show-errors "$file" "s3://${MOVIE_BUCKET}/${secret}/${name}"
+    url[$2]="${MOVIE_BASE_URL%/}/${secret}/${name}"
   else
     local tag="pr-movies"
     gh release view "$tag" -R "$repo" >/dev/null 2>&1 \
