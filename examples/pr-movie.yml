@@ -39,5 +39,7 @@ jobs:
           app-notes: >-
             Start the app with `npm run dev` (port 3000). Sign in as a test user
             through /test/sign-in?user=<name>. Seed data with `npm run seed`.
-          # movie-bucket: my-team-pr-movies
-          # movie-base-url: https://movies.example.com
+          # Make the bucket once with movie/bucket.yml (private bucket, served
+          # through CloudFront, files deleted after 90 days), then use its outputs:
+          # movie-bucket: appmap-pr-movies-<account id>
+          # movie-base-url: https://<distribution>.cloudfront.net
