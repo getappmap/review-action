@@ -1,0 +1,43 @@
+# Example: a PR movie on every pull request, as its own job so the main review
+# never waits on it. Copy into .github/workflows/ in a project.
+name: PR movie
+on:
+  pull_request:
+
+permissions:
+  contents: write        # the pr-movies release, when no bucket is set
+  pull-requests: write   # the sticky comment
+  id-token: write        # AWS sign-in without stored keys (optional)
+
+concurrency:
+  group: pr-movie-${{ github.event.pull_request.number }}
+  cancel-in-progress: true   # a new push replaces the movie being made
+
+jobs:
+  movie:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      # --- Replace with YOUR project's setup: install, database, seed. ---
+      # - run: npm ci && npm run db:setup
+
+      # The voice (AWS Polly) and, optionally, the S3 bucket use these credentials.
+      # - uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::<account>:role/pr-movie
+      #     aws-region: us-east-1
+
+      - uses: getappmap/review-action/movie@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          showcase-studio-token: ${{ secrets.SHOWCASE_STUDIO_TOKEN }}
+          app-notes: >-
+            Start the app with `npm run dev` (port 3000). Sign in as a test user
+            through /test/sign-in?user=<name>. Seed data with `npm run seed`.
+          # movie-bucket: my-team-pr-movies
+          # movie-base-url: https://movies.example.com

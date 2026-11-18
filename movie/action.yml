@@ -1,0 +1,181 @@
+name: AppMap PR Movie
+description: |
+  Make a short summary of a pull request as a narrated video, a podcast clip and
+  a written script, with an architecture, performance and security read, and
+  post it as one sticky PR comment. An AI agent runs the getappmap/skills
+  `appmap-pr-movie` skill; Showcase Studio cuts the video and voices the script.
+  Use beside the main review action: `uses: getappmap/review-action/movie@v1`.
+branding:
+  icon: film
+  color: purple
+
+inputs:
+  anthropic-api-key:
+    description: API key for the Claude Code agent.
+    required: true
+  github-token:
+    description: |
+      Token that posts the comment and, without movie-bucket, uploads to the
+      `pr-movies` release. Needs `contents: write` and `pull-requests: write`.
+    default: ${{ github.token }}
+  base-revision:
+    description: Revision the change is compared against. Defaults to the PR base branch.
+    default: ${{ github.base_ref }}
+  head-revision:
+    description: Revision the movie is made of. Defaults to the PR head commit.
+    default: ${{ github.event.pull_request.head.sha || github.sha }}
+  working-directory:
+    description: Directory the agent runs from.
+    default: '.'
+  app-notes:
+    description: |
+      Plain words telling the agent how to start the app and sign in as a test
+      user, e.g. "Run `bin/dev`, app on :3000, sign in at /session/<user>/become".
+    required: true
+  showcase-studio-repo:
+    description: Git URL of Showcase Studio.
+    default: https://github.com/kgilpin/showcase-studio.git
+  showcase-studio-ref:
+    description: Branch, tag or SHA of Showcase Studio.
+    default: main
+  showcase-studio-token:
+    description: Token that can read the Showcase Studio repository, if it is private.
+    default: ''
+  movie-bucket:
+    description: |
+      S3 bucket for the video and podcast, so they play in the browser. Configure
+      AWS credentials earlier in the job. Empty uploads to a `pr-movies` GitHub
+      pre-release instead (links download rather than play).
+    default: ''
+  movie-base-url:
+    description: |
+      Public or signed base URL that serves movie-bucket, for example a CloudFront domain.
+    default: ''
+  skills-repo:
+    description: Git URL of the skills repository.
+    default: https://github.com/getappmap/skills.git
+  skills-ref:
+    description: Branch, tag or SHA of the skills repository.
+    default: main
+  model:
+    description: Model for the agent. Empty uses the agent's default.
+    default: ''
+  appmap-cli-version:
+    description: AppMap CLI version. Empty uses the PATH binary if present, else the latest release.
+    default: ''
+  node-version:
+    description: Node.js version the action needs.
+    default: '22'
+
+outputs:
+  movie-dir:
+    description: Folder holding movie.json, movie.mp4, podcast.m4a, script.txt and poster.png.
+    value: ${{ steps.movie.outputs.movie-dir }}
+
+runs:
+  using: composite
+  steps:
+    - id: guard
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ github.action_path }}/../scripts/guard.sh
+
+    - id: node
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        NODE_MIN: ${{ inputs.node-version }}
+      run: ${{ github.action_path }}/../scripts/detect-node.sh
+
+    - if: steps.guard.outputs.skip != 'true' && steps.node.outputs.need-node == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - id: versions
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        APPMAP_CLI_VERSION: ${{ inputs.appmap-cli-version }}
+        AGENT: claude
+      run: ${{ github.action_path }}/../scripts/resolve-versions.sh
+
+    - name: Install AppMap CLI
+      if: steps.guard.outputs.skip != 'true' && steps.versions.outputs.appmap-preinstalled != 'true'
+      shell: bash
+      env:
+        APPMAP_URL: ${{ steps.versions.outputs.appmap-url }}
+        DEST: ${{ runner.temp }}/appmap-bin
+      run: ${{ github.action_path }}/../scripts/install-appmap.sh
+
+    - name: Install agent runtime
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        AGENT: claude
+        AGENT_PACKAGE: ${{ steps.versions.outputs.agent-package }}
+        AGENT_VERSION: ${{ steps.versions.outputs.agent-version }}
+        PREFIX: ${{ runner.temp }}/agent-tools
+      run: ${{ github.action_path }}/../scripts/install-agent.sh
+
+    - name: Install skills
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        SKILLS_REPO: ${{ inputs.skills-repo }}
+        SKILLS_REF: ${{ inputs.skills-ref }}
+        AGENT: claude
+      run: ${{ github.action_path }}/../scripts/install-skills.sh
+
+    # Showcase Studio cuts the video and voices the script. It draws pages with
+    # Google Chrome (present on GitHub's Ubuntu runners) and needs ffmpeg.
+    - name: Install Showcase Studio
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      env:
+        REPO: ${{ inputs.showcase-studio-repo }}
+        REF: ${{ inputs.showcase-studio-ref }}
+        TOKEN: ${{ inputs.showcase-studio-token }}
+        DEST: ${{ runner.temp }}/showcase-studio
+      run: |
+        set -euo pipefail
+        command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; }
+        url="$REPO"
+        if [[ -n "$TOKEN" ]]; then url="${REPO/https:\/\//https://x-access-token:${TOKEN}@}"; fi
+        git clone --quiet --depth 1 --branch "$REF" "$url" "$DEST" 2>/dev/null \
+          || { git clone --quiet "$url" "$DEST" && git -C "$DEST" checkout --quiet "$REF"; }
+        npm --prefix "$DEST" ci --no-audit --no-fund
+        echo "SHOWCASE_STUDIO=$DEST" >> "$GITHUB_ENV"
+
+    - name: Make the movie
+      id: movie
+      if: steps.guard.outputs.skip != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        AGENT: claude
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        BASE_REVISION: ${{ inputs.base-revision }}
+        HEAD_REVISION: ${{ inputs.head-revision }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        APP_NOTES: ${{ inputs.app-notes }}
+        MODEL: ${{ inputs.model }}
+        ACTION_PATH: ${{ github.action_path }}/..
+        USAGE_DIR: ${{ runner.temp }}/appmap-usage
+      run: ${{ github.action_path }}/../scripts/run-agent.sh movie
+
+    - name: Publish the movie
+      if: steps.guard.outputs.skip != 'true' && steps.movie.outputs.movie-dir != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        MOVIE_DIR: ${{ steps.movie.outputs.movie-dir }}
+        HEAD_REVISION: ${{ inputs.head-revision }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        SKILLS_DIR: ${{ runner.temp }}/getappmap-skills
+        MOVIE_BUCKET: ${{ inputs.movie-bucket }}
+        MOVIE_BASE_URL: ${{ inputs.movie-base-url }}
+      run: ${{ github.action_path }}/../scripts/publish-movie.sh
